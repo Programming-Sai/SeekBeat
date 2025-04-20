@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from .search_engine import SearchEngine
 
 
-engine = SearchEngine
+engine = SearchEngine()
 
 def search_view(request):
     query = request.GET.get('query', None)
