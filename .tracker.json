@@ -1,0 +1,24 @@
+[
+    {
+        "id": "001",
+        "title": "Unable to Stop Server Using Ctrl+C in IDE Terminal",
+        "tag": "solved",
+        "language": "python",
+        "desc": "The terminal in the IDE (VS Code) was not responding to the usual Ctrl+C command to stop the server. Instead, it required Ctrl+Break, a key that was unavailable on the user\u2019s keyboard. This prevented proper server termination and manual control.",
+        "snippet": "",
+        "solution-desc": "Switching to the system's command line (CMD) allowed proper use of Ctrl+C, enabling server stop functionality as expected.",
+        "solution-snippet": "",
+        "time-taken": "20"
+    },
+    {
+        "id": "002",
+        "title": " Hot Reloading Not Reflecting Changes Immediately",
+        "tag": "solved",
+        "language": "python",
+        "desc": " Code changes were not being reflected in the server output immediately during development. This was likely due to the hot-reloading process not being triggered or not functioning properly. The server needed to be manually restarted each time for the changes to take effect.",
+        "snippet": "",
+        "solution-desc": " Running the server in a separate command line window (CMD) and manually restarting it after each change resolved the issue. This ensured that all updates were properly applied during testing.",
+        "solution-snippet": "",
+        "time-taken": "6"
+    }
+]

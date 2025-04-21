@@ -1,5 +1,12 @@
 import yt_dlp
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio
+# from aiohttp import ClientSession
+
+
+
+
 
 
 class SearchEngine:
@@ -21,14 +28,16 @@ class SearchEngine:
         # Default yt-dlp options optimized for fast, metadata-only searches
         self.SEARCH_YDL_OPTS = {
             "format": "bestaudio/best",    # Best audio quality
-            "noplaylist": True,              # Ignore playlists
+            # "noplaylist": True,              # Ignore playlists
             "quiet": True,                   # Suppress console output
             "skip_download": True,           # Do not download files
-            "extract_flat": False,           # Get full metadata, not flat URLs
-            "default_search": "ytsearch",  # Allows plain terms as search
-            "source_address": "0.0.0.0",   # Avoid IPv6 resolution issues
-            "cachedir": False,               # Disable yt-dlp cache
+            # "extract_flat": True,           # Get full metadata, not flat URLs
+            # "default_search": "ytsearch",  # Allows plain terms as search
+            # "source_address": "0.0.0.0",   # Avoid IPv6 resolution issues
+            # "cachedir": False,               # Disable yt-dlp cache
             "no_warnings": True,             # Suppress warnings
+            "print_json": True,
+            "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36"
         }
 
         # Use provided config, or fall back to defaults
@@ -38,47 +47,113 @@ class SearchEngine:
         # Default maximum number of results per query
         self.max_results = 10
 
-    def regular_search(self, search_term:str, max_results: int=None, offset: int=None) -> list[dict]:
+    def _execute_search(self, query: str):
+        """
+        Helper method to run the yt-dlp search synchronously in a separate thread.
+        """
+        with yt_dlp.YoutubeDL(self.config) as ydl:
+            return ydl.extract_info(query, download=False)
+        
+
+
+    async def regular_search(self, search_term: str, max_results: int = None, offset: int = None) -> list[dict] | dict:
         """
         Perform a single metadata search on YouTube.
 
         Args:
             search_term (str): The query string or URL.
             max_results (int, optional): Limit of results to return.
-                                         Defaults to self.max_results.
             offset (int, optional): Skip this many initial results.
 
         Returns:
             list[dict] or dict: A list of metadata dicts for matching videos,
-                                 or an error dict on failure.
+                                or an error dict on failure.
         """
         if not search_term:
             return {"error": "No search term provided"}
 
+        limit = max_results or self.max_results
+        total_to_fetch = limit + (offset or 0)
+        query = f"ytsearch{total_to_fetch}:{search_term}"
+
+        for attempt in range(2):  # Retry up to 2 times
+            try:
+
+                result = await asyncio.to_thread(self._execute_search, query)
+
+                # with yt_dlp.YoutubeDL(self.config) as ydl:
+                    # result = ydl.extract_info(query, download=False)
+
+                # If it returns a playlist-like result
+                if isinstance(result, dict) and result.get("_type") == "playlist":
+                    entries = result.get("entries", [])
+                    cleaned_entries = [
+                        {
+                            "title": e.get("title"),
+                            "duration": e.get("duration"),
+                            "uploader": e.get("uploader"),
+                            "thumbnail": e.get("thumbnail"),
+                            "webpage_url": e.get("webpage_url"),
+                            'upload_date': e.get('upload_date'),
+                            'largest_thumbnail': max(e.get('thumbnails', []), key=lambda t: t.get('height', 0) * t.get('width', 0)).get('url'),
+                            'smallest_thumbnail': min(e.get('thumbnails', []), key=lambda t: t.get('filesize', float('inf'))).get('url'),
+                        }
+                        for e in entries[offset or 0:total_to_fetch]
+                        if e and e.get("title") and e.get("webpage_url")
+                    ]
+                    # return cleaned_entries
+                    return cleaned_entries
+
+                # Single video fallback
+                if isinstance(result, dict) and result.get("title") and result.get("webpage_url"):
+                    return [{
+                        "title": result.get("title"),
+                        "duration": result.get("duration"),
+                        "uploader": result.get("uploader"),
+                        "thumbnail": result.get("thumbnail"),
+                        "webpage_url": result.get("webpage_url"),
+                        'upload_date': result.get('upload_date'),
+                        'smallest_thumbnail': min(result.get('thumbnails', []), key=lambda t: t.get('filesize', float('inf'))).get('url'),
+                    }]
+
+                return {"error": "No usable results returned"}
+
+            except Exception as e:
+                if attempt == 1:
+                    return {"error": f"An error occurred while searching for {search_term}: {str(e)}"}
+                await asyncio.sleep(0.5)  # Brief delay before retry
+
+
+    async def _wrapped_search(self, term: str, max_results_per_term: int) -> dict:
+        """
+        Perform the search and return the result with the term.
+
+        Args:
+            term (str): The search term.
+            max_results_per_term (int): Max results to return.
+
+        Returns:
+            dict: The result containing the term, results, and error info if any.
+        """
         try:
-            limit = max_results or self.max_results
-            total_to_fetch = limit + (offset or 0)
-
-            # Use yt-dlp to fetch metadata for top `total_to_fetch` matches
-            query = f"ytsearch{total_to_fetch}:{search_term}"
-            result = self.ydl.extract_info(query, download=False)
-
-            # if not result:
-                # return {"error": f"No results found for '{search_term}'"} 
-
-            # If it returns a playlist, slice out the desired window
-            if isinstance(result, dict) and result.get("_type") == "playlist":
-                entries = result.get("entries", [])
-                return entries[offset or 0 : total_to_fetch]
-
-            # Single video fallback
-            return [result]
-
+            data = await self.regular_search(term, max_results_per_term)
+            return {
+                'search_term': term,
+                'results': data,
+                'count': len(data) if isinstance(data, list) else 0
+            }
         except Exception as e:
-            # Return a structured error to the API layer
-            return {"error": f"An error occurred: {str(e)}"}
+            # In case of an error, return the error information
+            return {
+                'search_term': term,
+                'error': str(e),
+                'count': 0
+            }
 
-    def bulk_search(self, search_terms: str, max_results_per_term: int =5) -> list[dict]:
+
+
+
+    async def bulk_search(self, search_terms: list[str], max_results_per_term: int =5) -> list[dict]:
         """
         Perform concurrent searches for multiple terms.
 
@@ -98,34 +173,16 @@ class SearchEngine:
         if not search_terms:
             return [{"error": "No search terms provided"}]
 
-        results = []
-        # Use ThreadPoolExecutor to run multiple searches at once
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            # Map each Future to its search term for tracking
-            future_to_term = {
-                executor.submit(self.regular_search, term, max_results_per_term): term
-                for term in search_terms
-            }
+        # Wrap each search term with its result in a task
+        search_tasks = [
+            asyncio.create_task(self._wrapped_search(term, max_results_per_term))
+            for term in search_terms
+        ]
 
-            # As each search completes, build the result entry
-            for future in as_completed(future_to_term):
-                term = future_to_term[future]
-                try:
-                    data = future.result()
-                    results.append({
-                        'search_term': term,
-                        'results': data,
-                        'count': len(data) if isinstance(data, list) else 0
-                    })
-                except Exception as e:
-                    # Capture any unexpected exceptions
-                    results.append({
-                        'search_term': term,
-                        'error': str(e),
-                        'count': 0
-                    })
-            executor.shutdown(wait=True)
-        return results
+        # Use asyncio.gather to run all searches concurrently and get the results in order
+        completed_results = await asyncio.gather(*search_tasks)
+
+        return completed_results 
     
 
     def lan_search(self, search_term: str, scope: str = "all") -> list[dict]:
