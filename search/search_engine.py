@@ -124,6 +124,7 @@ class SearchEngine:
                         'error': str(e),
                         'count': 0
                     })
+            executor.shutdown(wait=True)
         return results
     
 
