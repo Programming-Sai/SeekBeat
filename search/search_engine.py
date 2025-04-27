@@ -1,3 +1,4 @@
+import random
 import yt_dlp
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -31,28 +32,29 @@ class SearchEngine:
             # "noplaylist": True,              # Ignore playlists
             "quiet": True,                   # Suppress console output
             "skip_download": True,           # Do not download files
-            # "extract_flat": True,           # Get full metadata, not flat URLs
+            # "extract_flat": "in_playlist",           # Get full metadata, not flat URLs
             # "default_search": "ytsearch",  # Allows plain terms as search
             # "source_address": "0.0.0.0",   # Avoid IPv6 resolution issues
             # "cachedir": False,               # Disable yt-dlp cache
             "no_warnings": True,             # Suppress warnings
-            "print_json": True,
+            # "print_json": True,
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36"
         }
 
-        # Use provided config, or fall back to defaults
+        # Use provided config, or fall back to defaults 
         self.config = config if config else self.SEARCH_YDL_OPTS
         # Initialize the yt-dlp extractor
         self.ydl = yt_dlp.YoutubeDL(self.config)
         # Default maximum number of results per query
         self.max_results = 10
+        self.retries = 5
 
     def _execute_search(self, query: str):
         """
-        Helper method to run the yt-dlp search synchronously in a separate thread.
+        Helper method to run the yt-dlp search synchronously.
         """
-        with yt_dlp.YoutubeDL(self.config) as ydl:
-            return ydl.extract_info(query, download=False)
+        return self.ydl.extract_info(query, download=False)
+
         
 
 
@@ -76,7 +78,7 @@ class SearchEngine:
         total_to_fetch = limit + (offset or 0)
         query = f"ytsearch{total_to_fetch}:{search_term}"
 
-        for attempt in range(2):  # Retry up to 2 times
+        for attempt in range(self.retries): 
             try:
 
                 result = await asyncio.to_thread(self._execute_search, query)
@@ -119,9 +121,12 @@ class SearchEngine:
                 return {"error": "No usable results returned"}
 
             except Exception as e:
-                if attempt == 1:
+                if attempt == self.retries - 1:  # Last attempt
                     return {"error": f"An error occurred while searching for {search_term}: {str(e)}"}
-                await asyncio.sleep(0.5)  # Brief delay before retry
+            
+                # Exponential backoff with some random jitter
+                wait_time = min(2 ** attempt + random.uniform(0, 1), 10)  # Max delay of 10 seconds
+                await asyncio.sleep(wait_time)
 
 
     async def _wrapped_search(self, term: str, max_results_per_term: int) -> dict:
