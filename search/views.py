@@ -1,18 +1,14 @@
 from django.http import JsonResponse
 from .search_engine import SearchEngine
-
+ 
 
 # TODO: Add proper input validation for search terms (e.g., ensure they are non-empty and valid).
 # TODO: Parameterize max_results, limit, and offset values in search functions.
 # TODO: Add functionality for handling errors in a more user-friendly way (e.g., specific error codes or messages).
 # TODO: Add logging for better debugging and error tracking (e.g., log failed searches or unexpected results).
 # TODO: Improve the LAN-based search functionality (currently a placeholder).
-# TODO: Consider using caching for frequently searched queries to improve performance (e.g., Redis).
-# TODO: Handle the case when a search term returns no results with a more meaningful response (e.g., "No results found").
-# TODO: Implement a rate-limiting mechanism to prevent excessive requests to YouTube's API and avoid being blocked.
 # TODO: Test the performance of bulk searches to ensure the system scales with a large number of queries.
-# TODO: Improve error handling in the async search functions for better fault tolerance.
-# TODO Add a way to determine if a link was provided or a serach term.
+# TODO: Add a way to determine if a link was provided or a serach term.
 # FIlters
 # TODO: Add the option to filter search results based on video length (e.g., short or long videos).
 # TODO: Add the ability to filter search results by video quality or resolution (e.g., 720p, 1080p).
@@ -21,12 +17,10 @@ from .search_engine import SearchEngine
 
 ## How often do we cache (on every search or what?)
 ## how many of the results should be cached since we can't cache everything all the time.
-## 
 
 
 
 # A. Implement Redis caching of search results
-# D. Enforce concurrency limits in bulk_search (e.g. asyncio.Semaphore)
 # E. Apply rate-limiting on outbound scraping requests
 
 
