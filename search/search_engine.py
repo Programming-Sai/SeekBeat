@@ -3,6 +3,10 @@ import yt_dlp
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
+import requests
+import os
+import re
+
 # from aiohttp import ClientSession
 
 
@@ -50,6 +54,7 @@ class SearchEngine:
         self.retries = 5
         self.max_concurrent_searches = 5
         self._sem = asyncio.Semaphore(self.max_concurrent_searches)
+        self.BULK_API_KEY=os.getenv('BULK_SEARCH_YOUTUBE_API_KEY')
 
 
     def _execute_search(self, query: str):
@@ -144,7 +149,8 @@ class SearchEngine:
             dict: The result containing the term, results, and error info if any.
         """
         try:
-            data = await self.regular_search(term, max_results_per_term)
+            data = await self.regular_search_with_yt_api(term, max_results=10)
+            # data = await self.regular_search(term, max_results_per_term)
             return {
                 'search_term': term,
                 'results': data,
@@ -217,3 +223,80 @@ class SearchEngine:
 
 
             
+
+
+
+
+    # Function to parse duration (ISO 8601 format)
+    def _parse_duration(self, duration_str):
+        # The YouTube API returns the duration in ISO 8601 format, e.g., PT2M30S
+        pattern = r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?'
+        match = re.match(pattern, duration_str)
+        
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2) or 0)
+        seconds = int(match.group(3) or 0)
+        
+        # Return total duration in seconds
+        return hours * 3600 + minutes * 60 + seconds
+
+    # Main function to get and clean data
+    async def regular_search_with_yt_api(self, search_term, api_key=None, max_results=50, page_token=None):
+        api_key = api_key or self.BULK_API_KEY
+
+        if not api_key:
+            raise ValueError("Youtube API key Not Provided, or is invalid.")
+        
+        # Construct the API URL
+        url = "https://www.googleapis.com/youtube/v3/search"
+        
+        params = {
+            'part': 'snippet',
+            'maxResults': max_results,
+            'q': search_term,
+            'key': api_key,
+            'type': 'video',
+            'pageToken': page_token,  # For pagination if available
+        }
+
+        # Make the request to YouTube API
+        response = await asyncio.to_thread(requests.get, url, params)
+        if response.status_code != 200:
+            raise Exception(f"Error fetching data from YouTube API: {response.status_code}")
+        
+        data = response.json()
+        
+        cleaned_entries = []
+        
+        for e in data.get('items', []):
+            entry = {
+                "title": e.get("snippet", {}).get("title"),
+                "duration": None,  # We will fetch the duration separately for each video
+                "uploader": e.get("snippet", {}).get("channelTitle"),
+                "thumbnail": e.get("snippet", {}).get("thumbnails", {}).get("high", {}).get("url"),
+                "webpage_url": f"https://www.youtube.com/watch?v={e.get('id', {}).get('videoId')}",
+                'upload_date': e.get("snippet", {}).get('publishedAt'),
+                'largest_thumbnail': max(
+                    e.get("snippet", {}).get('thumbnails', {}).values(),
+                    key=lambda t: t.get('height', 0) * t.get('width', 0)
+                ).get('url'),
+                'smallest_thumbnail': min(
+                    e.get("snippet", {}).get('thumbnails', {}).values(),
+                    key=lambda t: t.get('filesize', float('inf'))
+                ).get('url'),
+            }
+
+            # Fetch video details to get the duration
+            video_id = e.get('id', {}).get('videoId')
+            if video_id:
+                duration_url = f"https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={video_id}&key={api_key}"
+                duration_response = await asyncio.to_thread(requests.get, duration_url)
+                if duration_response.status_code == 200:
+                    duration_data = duration_response.json()
+                    video_duration = duration_data['items'][0].get('contentDetails', {}).get('duration')
+                    entry["duration"] = self._parse_duration(video_duration)
+            
+            cleaned_entries.append(entry)
+
+        return cleaned_entries
+        # return cleaned_entries
