@@ -48,6 +48,9 @@ class SearchEngine:
         # Default maximum number of results per query
         self.max_results = 10
         self.retries = 5
+        self.max_concurrent_searches = 5
+        self._sem = asyncio.Semaphore(self.max_concurrent_searches)
+
 
     def _execute_search(self, query: str):
         """
@@ -179,15 +182,12 @@ class SearchEngine:
             return [{"error": "No search terms provided"}]
 
         # Wrap each search term with its result in a task
-        search_tasks = [
-            asyncio.create_task(self._wrapped_search(term, max_results_per_term))
-            for term in search_terms
-        ]
+        async def sem_wrapped(term):
+            async with self._sem:
+                return await self._wrapped_search(term, max_results_per_term)
 
-        # Use asyncio.gather to run all searches concurrently and get the results in order
-        completed_results = await asyncio.gather(*search_tasks)
-
-        return completed_results 
+        tasks = [asyncio.create_task(sem_wrapped(term)) for term in search_terms]
+        return await asyncio.gather(*tasks)
     
 
     def lan_search(self, search_term: str, scope: str = "all") -> list[dict]:
@@ -216,3 +216,51 @@ class SearchEngine:
 
 
             
+
+
+"""
+i think this is it
+
+http://localhost:8000/search/bulk/?queries=Maleficent,House%20of%20cards,Fiona,Shriek,Pied%20Piper
+
+what is ths error:
+[
+  {
+    "search_term": "Maleficent",
+    "results": {
+      "error": "An error occurred while searching for Maleficent: \u001B[0;31mERROR:\u001B[0m Unable to download API page: \u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5BA93A0\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed) (caused by TransportError(\"\u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5BA93A0\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed)\"))"
+    },
+    "count": 0
+  },
+  {
+    "search_term": "House of cards",
+    "results": {
+      "error": "An error occurred while searching for House of cards: \u001B[0;31mERROR:\u001B[0m Unable to download API page: \u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5BA9A30\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed) (caused by TransportError(\"\u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5BA9A30\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed)\"))"
+    },
+    "count": 0
+  },
+  {
+    "search_term": "Fiona",
+    "results": {
+      "error": "An error occurred while searching for Fiona: \u001B[0;31mERROR:\u001B[0m Unable to download API page: \u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5A3E810\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed) (caused by TransportError(\"\u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5A3E810\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed)\"))"
+    },
+    "count": 0
+  },
+  {
+    "search_term": "Shriek",
+    "results": {
+      "error": "An error occurred while searching for Shriek: \u001B[0;31mERROR:\u001B[0m Unable to download API page: \u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5CF9B20\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed) (caused by TransportError(\"\u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5CF9B20\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed)\"))"
+    },
+    "count": 0
+  },
+  {
+    "search_term": "Pied Piper",
+    "results": {
+      "error": "An error occurred while searching for Pied Piper: \u001B[0;31mERROR:\u001B[0m Unable to download API page: \u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5A3FD40\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed) (caused by TransportError(\"\u003Curllib3.connection.HTTPSConnection object at 0x000001CEC5A3FD40\u003E: Failed to resolve 'www.youtube.com' ([Errno 11001] getaddrinfo failed)\"))"
+    },
+    "count": 0
+  }
+]
+
+
+"""
