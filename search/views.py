@@ -34,8 +34,8 @@ async def search_view(request):
     query = request.GET.get('query', None)
     
     if query:
-        result = await engine.regular_search(query)
-        # result = await engine.regular_search_with_yt_api(query)
+        # result = await engine.regular_search(query)
+        result = await engine.regular_search_with_yt_api(query)
         print('query:', query)
         return JsonResponse(result, safe=False)
     return JsonResponse({"error": "No query parameter provided."})
