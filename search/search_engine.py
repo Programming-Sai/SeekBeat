@@ -7,6 +7,9 @@ import requests
 import os
 import re
 
+
+
+
 # from aiohttp import ClientSession
 
 
@@ -169,8 +172,6 @@ class SearchEngine:
             }
 
 
-
-
     async def bulk_search(self, search_terms: list[str], max_results_per_term: int = 10) -> list[dict]:
         """
         Perform concurrent searches for multiple terms.
@@ -239,7 +240,7 @@ class SearchEngine:
         # Return total duration in seconds
         return hours * 3600 + minutes * 60 + seconds
 
-   
+    
     async def regular_search_with_yt_api(self, search_term, api_key=None, max_results=50, page_token=None, bulk=False):
         api_key = api_key or self.NORMAL_API_KEY
 

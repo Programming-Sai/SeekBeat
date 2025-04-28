@@ -1,13 +1,9 @@
 from django.http import JsonResponse
 from .search_engine import SearchEngine
- 
+from django_ratelimit.decorators import ratelimit
+from asgiref.sync import async_to_sync
 
- 
-# Obtain & configure your two YouTube API keys (one for normal searches, one for bulk).
 
-# Integrate those keys into new async search functions (replacing yt-dlp for metadata).
-
-# Add quota-usage checks so we know when to fall back to scraping.
 
 # Input validation, parameterization of max_results/limit/offset, and better error-handling.
 
@@ -15,41 +11,42 @@ from .search_engine import SearchEngine
 
 # LAN search implementation (currently a stub).
 
-# Performance testing of bulk searches.
-
 # Detect links vs. terms in your search input.
 
 # Frontend filter support (length, quality, date/view-count filters).
 
 # Caching strategy (frequency, result size, Redis integration).
 
-# Rate-limit outbound scraping (for when we fall back to yt-dlp).
 
 
 
 
 engine = SearchEngine()
 
-async def search_view(request):
+
+@ratelimit(key='ip', rate='25/m', block=True)   
+def search_view(request):
     query = request.GET.get('query', None)
     
     if query:
         # result = await engine.regular_search(query)
-        result = await engine.regular_search_with_yt_api(query)
+        result = async_to_sync(engine.regular_search_with_yt_api)(query)
         print('query:', query)
         return JsonResponse(result, safe=False)
-    return JsonResponse({"error": "No query parameter provided."})
+    return JsonResponse({"error": "No query parameter provided."}, status=400)
 
 
 
 
-async def bulk_search_view(request):
+
+@ratelimit(key='ip', rate='5/m', block=True) 
+def bulk_search_view(request):
     queries = request.GET.get("queries", "")
     terms = [q.strip() for q in queries.split(",") if q.strip()]
     
     if not terms:
         return JsonResponse({"error": "No valid queries provided. Please provide comma-separated search terms."}, status=400)
     
-    results = await engine.bulk_search(search_terms=terms)
+    results = async_to_sync(engine.bulk_search)(search_terms=terms)
 
     return JsonResponse(results, safe=False)

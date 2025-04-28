@@ -20,5 +20,93 @@
         "solution-desc": " Running the server in a separate command line window (CMD) and manually restarting it after each change resolved the issue. This ensured that all updates were properly applied during testing.",
         "solution-snippet": "",
         "time-taken": "6"
+    },
+    {
+        "id": "003",
+        "title": "Streaming metadata results blocking",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Attempted to yield individual yt-dlp.extract_info() entries to stream results as they arrive, but yt-dlp buffers and returns the full batch at once.",
+        "snippet": "async def regular_search(...):\n    for entry in cleaned_entries:\n        yield entry",
+        "solution-desc": "Abandoned live streaming; collect full list and return it in one response.",
+        "solution-snippet": "return cleaned_entries",
+        "time-taken": "30m"
+    },
+    {
+        "id": "004",
+        "title": "Virtualenv activation on Windows",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Windows venv activation wasn\u2019t working; pip freeze showed global packages instead of project-specific ones.",
+        "snippet": "C:\\\\> .seek-venv/Scripts/activate\n(.seek-venv) C:\\\\> pip freeze  # still global packages",
+        "solution-desc": "Used the correct PowerShell activation script and reinstalled dependencies into the venv.",
+        "solution-snippet": ". .\\\\.seek-venv\\\\Scripts\\\\Activate.ps1\n(.seek-venv) C:\\\\> pip freeze  # now shows project deps",
+        "time-taken": "20m"
+    },
+    {
+        "id": "005",
+        "title": "Retry logic with exponential backoff",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Search calls failed intermittently with DNS or rate-limit errors and had no retry policy.",
+        "snippet": "for attempt in range(2):\n    result = await asyncio.to_thread(...)  # no backoff",
+        "solution-desc": "Introduced configurable retries and exponential backoff with jitter before each retry.",
+        "solution-snippet": "for attempt in range(self.retries):\n    try:\n        ...\n    except Exception:\n        await asyncio.sleep(min(2**attempt + random.uniform(0,1),10))",
+        "time-taken": "45m"
+    },
+    {
+        "id": "006",
+        "title": "Concurrency throttling with asyncio.Semaphore",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Bulk searches spawned unlimited concurrent tasks and semaphore was bound to wrong event loop, causing errors.",
+        "snippet": "self._sem = asyncio.Semaphore(...); tasks = [asyncio.create_task(self._wrapped_search(term)) for term in terms]",
+        "solution-desc": "Initialized Semaphore in __init__ and wrapped each bulk task in \u0007sync with self._sem to limit concurrency.",
+        "solution-snippet": "async def sem_wrapped(term):\n    async with self._sem:\n        return await self._wrapped_search(term)",
+        "time-taken": "30m"
+    },
+    {
+        "id": "007",
+        "title": "YouTube Data API integration",
+        "tag": "solved",
+        "language": "python",
+        "desc": "yt-dlp scraping was too slow; needed faster metadata with pagination and quotas.",
+        "snippet": "result = await asyncio.to_thread(self._execute_search, query)  # slow scraping",
+        "solution-desc": "Added \regular_search_with_yt_api() calling YouTube Search & Videos APIs in parallel, cleaned entries.",
+        "solution-snippet": "response = await asyncio.to_thread(requests.get, url, params)\ncleaned_entries.append({...})",
+        "time-taken": "1h"
+    },
+    {
+        "id": "008",
+        "title": "Smart fallback between API and scraping",
+        "tag": "solved",
+        "language": "python",
+        "desc": "When API quotas were exceeded or calls failed, there was no fallback, causing search failures.",
+        "snippet": "response = await self._retry_request(...)  # no fallback on quota errors",
+        "solution-desc": "Detected quota errors in retry logic; on single search fallback to yt-dlp, on bulk return clear API-down error.",
+        "solution-snippet": "except Exception:\n    return await self.regular_search(search_term)  # fallback to yt-dlp",
+        "time-taken": "30m"
+    },
+    {
+        "id": "009",
+        "title": "Inbound rate-limiting per IP",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Needed to throttle clients; initial high limits made testing impractical.",
+        "snippet": "@ratelimit(key='ip', rate='25/m', block=True) def search_view(...)",
+        "solution-desc": "Applied django-ratelimit decorators with a test-friendly rate (e.g. 2/m), verified via 429 responses.",
+        "solution-snippet": "@ratelimit(key='ip', rate='2/m', block=True) def search_view(request): ...",
+        "time-taken": "20m"
+    },
+    {
+        "id": "010",
+        "title": "Sync vs Async Django views",
+        "tag": "solved",
+        "language": "python",
+        "desc": "async def views with ratelimit caused unawaited coroutine under WSGI, Django expected sync views.",
+        "snippet": "async def search_view(request):\\n    result = await engine.regular_search(...)",
+        "solution-desc": "Changed to regular def views and wrapped async calls with async_to_sync().",
+        "solution-snippet": "def search_view(request):\\n    result = async_to_sync(engine.regular_search)(query)\\n    return JsonResponse(...)",
+        "time-taken": "40m"
     }
 ]
