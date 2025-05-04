@@ -7,6 +7,9 @@ import re
 import unicodedata
 
 
+import logging
+logger = logging.getLogger('seekbeat')
+
 
 
 # from aiohttp import ClientSession
@@ -32,6 +35,7 @@ class SearchEngine:
             config (dict, optional): A dict of yt-dlp options. If None,
                                      defaults to SEARCH_YDL_OPTS.
         """
+        
         # Default yt-dlp options optimized for fast, metadata-only searches
         self.SEARCH_YDL_OPTS = {
             "format": "bestaudio/best",    # Best audio quality
@@ -49,6 +53,8 @@ class SearchEngine:
 
         # Use provided config, or fall back to defaults 
         self.config = config if config else self.SEARCH_YDL_OPTS
+
+        logger.debug("Initializing SearchEngine with config: %s", self.config)
         # Initialize the yt-dlp extractor
         self.ydl = yt_dlp.YoutubeDL(self.config)
         # Default maximum number of results per query
@@ -83,7 +89,6 @@ class SearchEngine:
             list[dict] or dict: A list of metadata dicts for matching videos,
                                 or an error dict on failure.
         """
-        
         limit = max_results or self.max_results
         total_to_fetch = limit + (offset or 0)
 
@@ -97,20 +102,19 @@ class SearchEngine:
             search_term = search_term['query']
             query = f"ytsearch{total_to_fetch}:{search_term}"
 
+        logger.info("yt-dlp search for query=%s", query)
 
-        
-        # query = f"{search_term}"
-        # query = f"ytsearch{total_to_fetch}:{search_term}"
+      
 
         for attempt in range(self.retries): 
             if attempt > 0:
                 print(f"Scrapper Retry: {attempt}/{self.retries}")
+                logger.debug(f"Scrapper Retry: {attempt}/{self.retries} for search term: {query}")
             try:
 
                 result = await asyncio.to_thread(self._execute_search, query)
-
-                # with yt_dlp.YoutubeDL(self.config) as ydl:
-                    # result = ydl.extract_info(query, download=False)
+                logger.debug("yt-dlp returned type=%s for query=%s", result.get('_type'), query)
+                
 
                 # If it returns a playlist-like result
                 if isinstance(result, dict) and result.get("_type") == "playlist":
@@ -147,6 +151,7 @@ class SearchEngine:
                 return {"error": "No usable results returned"}
 
             except Exception as e:
+                logger.exception("yt-dlp error on attempt %d for query=%s", attempt, query)
                 if attempt == self.retries - 1:  # Last attempt
                     return {"error": f"An error occurred while searching for {search_term}: {str(e)}"}
             
@@ -169,7 +174,6 @@ class SearchEngine:
         try:
 
             data = await self.regular_search_with_yt_api(term, max_results=max_results_per_term, bulk=True)  
-            # data = await self.regular_search(term, max_results_per_term)
             return {   
                 'search_term': term,
                 'results': data,
@@ -177,6 +181,7 @@ class SearchEngine:
             }
         except Exception as e:
             # In case of an error, return the error information
+            logger.exception(f"Error fetching data for YouTube link {term['query']}: {e}")
             return {
                 'search_term': term,
                 'error': str(e),
@@ -208,6 +213,7 @@ class SearchEngine:
         async def sem_wrapped(term):
             async with self._sem:
                 print(f"Starting search for {term}")
+                logging.debug(f"Starting search for {term}")
                 return await self._wrapped_search(term, max_results_per_term)
 
         tasks = [asyncio.create_task(sem_wrapped(term)) for term in search_terms]
@@ -254,6 +260,8 @@ class SearchEngine:
 
     
     async def regular_search_with_yt_api(self, search_term, api_key=None, max_results=50, page_token=None, bulk=False):
+        logger.info("YT-API search for term=%s (bulk=%s)", search_term, bulk)   
+
         query = search_term
         if search_term['type'] == 'invalid':
             return search_term['reason']
@@ -282,10 +290,14 @@ class SearchEngine:
             response = await self._retry_request(url, params, search_term, retries=self.retries)
             # raise Exception("Simulated Exception to test yt-dlp Fall back") # Fall back caller for testing.
             data = response.json()
+            logger.debug("YT-API returned %d items for term=%s", len(data.get('items', [])), search_term)
         except Exception as e:
+            logger.exception("Failed parsing JSON for term=%s", search_term)
             print(f"Youtube API failed after retries: {e}")
             if bulk:
+                logger.warning("Bulk fallback: aborting bulk for term=%s", search_term) 
                 raise Exception("Bulk Search API is currently unavailable. Try again later.")
+            logger.info("Falling back to yt-dlp for term=%s", search_term)
             return await self.regular_search(query)  # Fallback here
 
         video_ids = [e.get('id', {}).get('videoId') for e in data.get('items', []) if e.get('id', {}).get('videoId')]
@@ -325,6 +337,7 @@ class SearchEngine:
             try:
                 if attempt > 0:
                     print(f"Api Retry for '{search_term}': {attempt}/{self.retries}")
+                    logger.debug("Retry %d for term=%s", attempt, search_term) 
 
 
                 # Simulate API failure for testing
@@ -335,8 +348,11 @@ class SearchEngine:
                 # raise Exception("Simulated API failure for testing.")
             
                 if response.status_code == 200:
+                    logger.debug("Request success for term=%s", search_term)  # 🔹 LOG HERE
                     return response
                 else:
+                    logger.warning("Non-200 (%s) for term=%s: %s", response.status_code, search_term, response.text)  # 🔹 LOG HERE
+
                     error_data = response.json()
                     reason = error_data.get('error', {}).get('errors', [{}])[0].get('reason', '')
 
@@ -347,6 +363,7 @@ class SearchEngine:
 
             except Exception as e:
                 print(f"Request attempt {attempt+1} failed with error: {e}")
+                logger.exception(f"Request attempt {attempt+1} failed with error: {e}")
 
             await asyncio.sleep(1)  # small delay before retry
 

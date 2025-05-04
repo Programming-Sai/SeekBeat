@@ -2,16 +2,15 @@ from django.http import JsonResponse
 from .search_engine import SearchEngine
 from django_ratelimit.decorators import ratelimit
 from asgiref.sync import async_to_sync
+import logging
+logger = logging.getLogger('seekbeat')
 
 
-
-# Input validation, parameterization of max_results/limit/offset, and better error-handling.
-# Detect links vs. terms in your search input.
-# Logging for debugging and tracking failures.
 
 # Caching strategy (frequency, result size, Redis integration).
 # LAN search implementation (currently a stub).
-# Frontend filter support (length, quality, date/view-count filters).
+# Tests
+# Documentation
 
 
 
@@ -23,15 +22,25 @@ engine = SearchEngine()
 
 @ratelimit(key='ip', rate='25/m', block=True)   
 def search_view(request):
-    query = request.GET.get('query', None)
+    logger.info("Received single search request from %s", request.META.get('REMOTE_ADDR'))  # 🔹 LOG HERE
     
-    if query:
-        query = engine.clean_and_classify_query(query)
-        # result = await engine.regular_search(query)
-        result = async_to_sync(engine.regular_search_with_yt_api)(query)
-        print('query:', query)
-        return JsonResponse(result, safe=False)
-    return JsonResponse({"error": "No query parameter provided."}, status=400)
+    query = request.GET.get('query', None)
+    if not query:
+        logger.warning("No query parameter provided")  # 🔹 LOG HERE
+        return JsonResponse({"error": "No query parameter provided."}, status=400)
+    
+    classified = engine.clean_and_classify_query(query)
+    logger.debug("Classified query: %s", classified)  # 🔹 LOG HERE
+
+    try:
+        result = async_to_sync(engine.regular_search_with_yt_api)(classified)
+        logger.info("Search completed for query=%s, returned %s items", classified['query'], len(result) if isinstance(result, list) else 'error')  # 🔹 LOG HERE
+
+    except Exception as e:
+        logger.exception("Search failed for query=%s", classified['query'])  # 🔹 LOG HERE
+        return JsonResponse({"error": "Internal error"}, status=500)
+
+    return JsonResponse(result, safe=False)
 
 
 
@@ -39,13 +48,21 @@ def search_view(request):
 
 @ratelimit(key='ip', rate='5/m', block=True) 
 def bulk_search_view(request):
-    queries = request.GET.get("queries", "")
-    terms = [engine.clean_and_classify_query(q.strip()) for q in queries.split(",") if q.strip()]
-    print(terms)
-    
+    logger.info("Received bulk search request: %s", request.GET.get('queries'))  # 🔹 LOG HERE
+
+    raw = request.GET.get("queries", "")
+    terms = [engine.clean_and_classify_query(q.strip()) for q in raw.split(",") if q.strip()]
+    logger.debug("Classified bulk terms: %s", terms)  # 🔹 LOG HERE
+
     if not terms:
-        return JsonResponse({"error": "No valid queries provided. Please provide comma-separated search terms."}, status=400)
-    
-    results = async_to_sync(engine.bulk_search)(search_terms=terms)
+        logger.warning("Bulk search: no valid queries provided")  # 🔹 LOG HERE
+        return JsonResponse({"error": "No valid queries provided."}, status=400)
+
+    try:
+        results = async_to_sync(engine.bulk_search)(search_terms=terms)
+        logger.info("Bulk search completed with %d terms", len(terms))  # 🔹 LOG HERE
+    except Exception as e:
+        logger.exception("Bulk search failed")  # 🔹 LOG HERE
+        return JsonResponse({"error": "Internal error"}, status=500)
 
     return JsonResponse(results, safe=False)
