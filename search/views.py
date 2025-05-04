@@ -6,16 +6,13 @@ from asgiref.sync import async_to_sync
 
 
 # Input validation, parameterization of max_results/limit/offset, and better error-handling.
-
+# Detect links vs. terms in your search input.
 # Logging for debugging and tracking failures.
 
+# Caching strategy (frequency, result size, Redis integration).
 # LAN search implementation (currently a stub).
-
-# Detect links vs. terms in your search input.
-
 # Frontend filter support (length, quality, date/view-count filters).
 
-# Caching strategy (frequency, result size, Redis integration).
 
 
 
@@ -29,6 +26,7 @@ def search_view(request):
     query = request.GET.get('query', None)
     
     if query:
+        query = engine.clean_and_classify_query(query)
         # result = await engine.regular_search(query)
         result = async_to_sync(engine.regular_search_with_yt_api)(query)
         print('query:', query)
@@ -42,7 +40,8 @@ def search_view(request):
 @ratelimit(key='ip', rate='5/m', block=True) 
 def bulk_search_view(request):
     queries = request.GET.get("queries", "")
-    terms = [q.strip() for q in queries.split(",") if q.strip()]
+    terms = [engine.clean_and_classify_query(q.strip()) for q in queries.split(",") if q.strip()]
+    print(terms)
     
     if not terms:
         return JsonResponse({"error": "No valid queries provided. Please provide comma-separated search terms."}, status=400)

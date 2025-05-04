@@ -1,11 +1,10 @@
 import random
 import yt_dlp
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
 import requests
 import os
 import re
+import unicodedata
 
 
 
@@ -57,6 +56,7 @@ class SearchEngine:
         self.retries = 5
         self.max_concurrent_searches = 5
         self._sem = asyncio.Semaphore(self.max_concurrent_searches)
+        self.max_query_length = 500
         self.BULK_API_KEY=os.getenv('BULK_SEARCH_YOUTUBE_API_KEY')
         self.NORMAL_API_KEY=os.getenv('NORMAL_SEARCH_YOUTUBE_API_KEY')
 
@@ -83,12 +83,24 @@ class SearchEngine:
             list[dict] or dict: A list of metadata dicts for matching videos,
                                 or an error dict on failure.
         """
-        if not search_term:
-            return {"error": "No search term provided"}
-
+        
         limit = max_results or self.max_results
         total_to_fetch = limit + (offset or 0)
-        query = f"ytsearch{total_to_fetch}:{search_term}"
+
+        
+        if search_term['type'] == 'invalid':
+            return search_term['reason']
+        elif search_term['type'] == 'youtube':
+            search_term = search_term['query']
+            query = f"{search_term}"
+        elif search_term['type'] == 'search':
+            search_term = search_term['query']
+            query = f"ytsearch{total_to_fetch}:{search_term}"
+
+
+        
+        # query = f"{search_term}"
+        # query = f"ytsearch{total_to_fetch}:{search_term}"
 
         for attempt in range(self.retries): 
             if attempt > 0:
@@ -242,6 +254,14 @@ class SearchEngine:
 
     
     async def regular_search_with_yt_api(self, search_term, api_key=None, max_results=50, page_token=None, bulk=False):
+        query = search_term
+        if search_term['type'] == 'invalid':
+            return search_term['reason']
+        elif search_term['type'] == 'youtube':
+            return await self.regular_search(search_term)
+        elif search_term['type'] == 'search':
+            search_term = search_term['query']
+
         api_key = api_key or self.NORMAL_API_KEY
 
         if not api_key:
@@ -260,12 +280,13 @@ class SearchEngine:
 
         try:
             response = await self._retry_request(url, params, search_term, retries=self.retries)
+            # raise Exception("Simulated Exception to test yt-dlp Fall back") # Fall back caller for testing.
             data = response.json()
         except Exception as e:
             print(f"Youtube API failed after retries: {e}")
             if bulk:
                 raise Exception("Bulk Search API is currently unavailable. Try again later.")
-            return await self.regular_search(search_term)  # Fallback here
+            return await self.regular_search(query)  # Fallback here
 
         video_ids = [e.get('id', {}).get('videoId') for e in data.get('items', []) if e.get('id', {}).get('videoId')]
 
@@ -295,6 +316,9 @@ class SearchEngine:
             cleaned_entries.append(entry)
 
         return cleaned_entries
+
+
+
 
     async def _retry_request(self, url, params, search_term, retries=3):
         for attempt in range(retries):
@@ -329,7 +353,6 @@ class SearchEngine:
         raise Exception(f"Failed after {retries} retries.")
 
 
-        raise Exception("Max retries exceeded.")
 
     async def _fetch_durations_parallel(self, video_ids, api_key):
         async def fetch_duration(video_id):
@@ -347,3 +370,69 @@ class SearchEngine:
         tasks = [fetch_duration(vid) for vid in video_ids]
         results = await asyncio.gather(*tasks)
         return dict(results)
+
+
+
+# Sanitzation and input validation
+
+
+
+    def _is_youtube_link(self, query: str) -> bool:
+        """
+        Check if the query is a valid YouTube link.
+        """
+        return bool(re.search(r'https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?v=|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})', query))
+
+    def _clean_query(self, query: str) -> str:
+        """
+        Clean and normalize the input query.
+        - Trims whitespace
+        - Normalizes unicode characters
+        - Collapses repeated spaces
+        """
+        # Normalize unicode (e.g. converting accented characters to their basic form)
+        query = unicodedata.normalize('NFKC', query)
+
+        # Remove leading and trailing whitespace
+        query = query.strip()
+
+        # Collapse multiple spaces to a single one
+        query = re.sub(r'\s+', ' ', query)
+
+        return query
+
+    def _validate_query(self, query: str) -> bool:
+        """
+        Validate the input query for basic safety and length.
+        - Ensure the query isn't empty after cleaning.
+        - Reject queries that are too long or too short.
+        """
+        # Ensure query isn't empty or just whitespace
+        if not query:
+            return {'type': 'invalid', 'query': query, 'reason':'This is an empty query. please place some search term or youtube link.'}, False
+        
+        # Optional: Reject queries that are too long or too short
+        if len(query) > self.max_query_length:  # Arbitrary max length
+            return {'type': 'invalid', 'query': query, 'reason': 'This query is too long. Please shorten it.'}, False
+        
+        return {'type': 'valid', 'query': query}, True
+
+    def clean_and_classify_query(self, query: str):
+        """
+        Main function that detects if the query is a YouTube link or a search term.
+        - Cleans the query
+        - Detects if it's a valid YouTube link or a search term
+        - Returns structured result: {'type': 'youtube'/'search', 'query': cleaned query}
+        """
+        # Clean and validate the query
+        query = self._clean_query(query)
+        invalidity_reason, validity = self._validate_query(query)
+        if not validity:
+            return invalidity_reason
+
+        # Check if it's a YouTube link
+        if self._is_youtube_link(query):
+            return {'type': 'youtube', 'query': query}
+        
+        # Otherwise treat it as a search term
+        return {'type': 'search', 'query': query}
