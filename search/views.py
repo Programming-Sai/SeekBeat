@@ -7,7 +7,6 @@ logger = logging.getLogger('seekbeat')
 
 
 
-# LAN search implementation (currently a stub).
 # Tests
 # Documentation
 
