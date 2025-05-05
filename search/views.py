@@ -7,14 +7,15 @@ logger = logging.getLogger('seekbeat')
 
 
 
-# Caching strategy (frequency, result size, Redis integration).
 # LAN search implementation (currently a stub).
 # Tests
 # Documentation
 
 
 
+# Normal Search Testing endpoint + parameters = http://127.0.0.1:8000/search/?query=MAn%20of%20steel
 
+# Bulk Search Testing enpoint + parameters = http://127.0.0.1:8000/search/bulk/?queries=Adele%20Hello,Coldplay%20Viva%20La%20Vida,Imagine%20Dragons%20Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
 
 
 engine = SearchEngine()
