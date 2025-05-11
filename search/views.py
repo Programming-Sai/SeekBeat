@@ -7,7 +7,6 @@ logger = logging.getLogger('seekbeat')
 
 
 
-# Tests
 # Documentation
 
 
