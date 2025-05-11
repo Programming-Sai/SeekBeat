@@ -127,8 +127,8 @@ class SearchEngine:
                             "thumbnail": e.get("thumbnail"),
                             "webpage_url": e.get("webpage_url"),
                             'upload_date': e.get('upload_date'),
-                            'largest_thumbnail': max(e.get('thumbnails', []), key=lambda t: t.get('height', 0) * t.get('width', 0)).get('url') if result.get('thumbnails', []) else result.get('thumbnail'),
-                            'smallest_thumbnail': min(e.get('thumbnails', []), key=lambda t: t.get('filesize', float('inf'))).get('url')  if result.get('thumbnails', []) else result.get('thumbnail'),
+                            'largest_thumbnail': max(e.get('thumbnails', []), key=lambda t: t.get('height', 0) * t.get('width', 0)).get('url') if e.get('thumbnails', []) else e.get('thumbnail'),
+                            'smallest_thumbnail': min(e.get('thumbnails', []), key=lambda t: t.get('filesize', float('inf'))).get('url')  if e.get('thumbnails', []) else e.get('thumbnail'),
                         }
                         for e in entries[offset or 0:total_to_fetch]
                         if e and e.get("title") and e.get("webpage_url")

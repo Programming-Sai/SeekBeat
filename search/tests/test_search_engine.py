@@ -119,8 +119,9 @@ class TestSearchEngine(unittest.TestCase):
         self.assertEqual(result[0]['title'], 'T0')
         self.assertEqual(result[1]['title'], 'T1')
         # thumbnails
-        # self.assertEqual(result[0]['largest_thumbnail'], 'big')
-        # self.assertEqual(result[0]['smallest_thumbnail'], 'small')
+        self.assertEqual(result[0]['largest_thumbnail'], 'big')
+        self.assertEqual(result[0]['smallest_thumbnail'], 'small')
+
 
     @patch.object(SearchEngine, "_execute_search", side_effect=[
     Exception("fail 1"), Exception("fail 2"), 
@@ -161,16 +162,53 @@ class TestSearchEngine(unittest.TestCase):
         self.assertEqual(len(bulk), 2)
         self.assertIn('results', bulk[0])
 
+    @patch.object(SearchEngine, '_retry_request')
+    def test_regular_search_api_quota_limit(self, mock_retry):
+        self.engine.NORMAL_API_KEY = 'fake-key'  # Simulate valid key
+        mock_retry.side_effect = Exception("HTTP Error 403: quotaExceeded")
+        
+        result = asyncio.run(self.engine.regular_search_with_yt_api(
+            {'type': 'search', 'query': 'quota-test'}
+        ))
+        
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
+        self.assertIn('title', result[0])
+
+
+
     @patch.object(SearchEngine, '_execute_search')
-    def test_regular_search_api_quota_limit(self, mock_exec):
-        mock_exec.side_effect = Exception("HTTP Error 403: quotaExceeded")
-        result = asyncio.run(self.engine.regular_search({'type': 'search', 'query': 'quota-test'}))
+    def test_regular_search_rate_limited(self, mock_exec):
+        mock_exec.side_effect = Exception("HTTP Error 429: Too Many Requests")
+        result = asyncio.run(self.engine.regular_search({'type': 'search', 'query': 'Requests'}))
         self.assertIsInstance(result, dict)
         self.assertIn('error', result)
-        self.assertIn('quotaExceeded', result['error'])
+        self.assertIn('Too Many Requests', result['error'])
+        
+
+    @patch.object(SearchEngine, '_execute_search')
+    def test_regular_search_extraction_error(self, mock_exec):
+        mock_exec.side_effect = Exception("Unable to extract video data")
+        result = asyncio.run(self.engine.regular_search({'type': 'search', 'query': 'extract'}))
+        self.assertIsInstance(result, dict)
+        self.assertIn('error', result)
+        self.assertIn('Unable to extract video data', result['error'])
+
+        
+
+    @patch.object(SearchEngine, '_execute_search')
+    def test_regular_search_unsupported_url(self, mock_exec):
+        mock_exec.side_effect = Exception("Unsupported URL")
+        result = asyncio.run(self.engine.regular_search({'type': 'search', 'query': 'URL'}))
+        self.assertIsInstance(result, dict)
+        self.assertIn('error', result)
+        self.assertIn('Unsupported URL', result['error'])
+
+        
+
 
 
 if __name__ == '__main__':
     unittest.main()
 
-    # Run with :   python -m unittest search.tests.test_search_engine.py
+    # Run with :   python -m unittest -f search.tests.test_search_engine.py
