@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stream Test</title>
+</head>
+<body>
+    <h2>{{ title }}</h2>
+    {% if stream_url %}
+        <audio controls autoplay>
+            <!-- <source src="{{ stream_url }}" type="audio/mp4"> -->
+            <source src="{% url 'stream_audio' video_id='dQw4w9WgXcQ' %}" type="audio/mp4">
+            Your browser does not support the audio element.
+        </audio>
+    {% else %}
+        <p>No stream URL provided.</p>
+    {% endif %}
+</body>
+</html>

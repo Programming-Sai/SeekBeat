@@ -7,8 +7,7 @@ from rest_framework import status
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.types import OpenApiTypes
-
-# from ratelimit.decorators import ratelimit
+from django.shortcuts import redirect, render
 from .streaming_engine import StreamingEngine
 
 logger = logging.getLogger('seekbeat')
@@ -63,11 +62,25 @@ def stream_url_view(request, video_url):
         return Response({"error": "Missing YouTube video URL."}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        # full_url = f"https://www.youtube.com/watch?v={video_url}"
-        # data = engine.extract_stream_url(full_url)
-        data = engine.extract_stream_url(video_url)
+        full_url = f"https://www.youtube.com/watch?v={video_url}"
+        data = engine.extract_stream_url(full_url)
+        # data = engine.extract_stream_url(video_url)
         logger.info("Stream URL extracted successfully for %s", video_url)
         return Response(data)
     except Exception as e:
         logger.exception("Stream extraction failed for %s", video_url)
         return Response({"error": "Failed to extract stream URL."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+
+
+def stream_test_view(request):
+    # title = request.GET.get('title')
+    stream_url = request.GET.get('id')
+    stream_info = engine.extract_stream_url(stream_url)
+    return redirect(stream_info["stream_url"])
+    # return render(request, 'streaming/test_player.html', {'stream_url': stream_url, 'title': title})
