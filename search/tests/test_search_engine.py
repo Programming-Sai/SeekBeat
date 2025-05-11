@@ -211,4 +211,4 @@ class TestSearchEngine(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-    # Run with :   python -m unittest -f search.tests.test_search_engine.py
+    # Run with :   python -m unittest -f search.tests.test_search_engine

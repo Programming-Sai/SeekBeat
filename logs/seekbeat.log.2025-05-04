@@ -1,0 +1,87 @@
+[2025-05-04 19:43:26,462] WARNING django.request: Not Found: /favicon.ico
+[2025-05-04 19:43:26,497] WARNING django.server: "GET /favicon.ico HTTP/1.1" 404 2700
+[2025-05-04 20:14:45,441] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+[2025-05-04 20:15:50,064] INFO seekbeat: Received single search request from 127.0.0.1
+[2025-05-04 20:15:50,064] DEBUG seekbeat: Classified query: {'type': 'search', 'query': 'MAn of steel'}
+[2025-05-04 20:15:50,064] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'MAn of steel'} (bulk=False)
+[2025-05-04 20:15:50,935] DEBUG seekbeat: Request success for term=MAn of steel
+[2025-05-04 20:15:50,936] DEBUG seekbeat: YT-API returned 50 items for term=MAn of steel
+[2025-05-04 20:15:53,232] INFO seekbeat: Search completed for query=MAn of steel, returned 50 items
+[2025-05-04 20:15:53,418] WARNING django.request: Not Found: /favicon.ico
+[2025-05-04 20:15:53,418] WARNING django.server: "GET /favicon.ico HTTP/1.1" 404 2700
+[2025-05-04 20:17:14,711] INFO seekbeat: Received bulk search request: Adele Hello,Coldplay Viva La Vida,Imagine Dragons Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
+[2025-05-04 20:17:14,711] DEBUG seekbeat: Classified bulk terms: [{'type': 'search', 'query': 'Adele Hello'}, {'type': 'search', 'query': 'Coldplay Viva La Vida'}, {'type': 'search', 'query': 'Imagine Dragons Believer'}, {'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'}]
+[2025-05-04 20:17:14,714] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Adele Hello'} (bulk=True)
+[2025-05-04 20:17:14,715] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Coldplay Viva La Vida'} (bulk=True)
+[2025-05-04 20:17:14,719] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Imagine Dragons Believer'} (bulk=True)
+[2025-05-04 20:17:14,725] INFO seekbeat: YT-API search for term={'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'} (bulk=True)
+[2025-05-04 20:17:15,576] DEBUG seekbeat: Request success for term=Imagine Dragons Believer
+[2025-05-04 20:17:15,576] DEBUG seekbeat: YT-API returned 10 items for term=Imagine Dragons Believer
+[2025-05-04 20:17:15,649] DEBUG seekbeat: Request success for term=Coldplay Viva La Vida
+[2025-05-04 20:17:15,649] DEBUG seekbeat: YT-API returned 10 items for term=Coldplay Viva La Vida
+[2025-05-04 20:17:15,682] DEBUG seekbeat: Request success for term=Adele Hello
+[2025-05-04 20:17:15,683] DEBUG seekbeat: YT-API returned 10 items for term=Adele Hello
+[2025-05-04 20:17:17,019] INFO seekbeat: Bulk search completed with 4 terms
+[2025-05-04 20:23:33,055] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+[2025-05-04 20:24:09,879] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+[2025-05-04 20:24:49,887] INFO seekbeat: Received bulk search request: Adele Hello,Coldplay Viva La Vida,Imagine Dragons Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
+[2025-05-04 20:24:49,888] DEBUG seekbeat: Classified bulk terms: [{'type': 'search', 'query': 'Adele Hello'}, {'type': 'search', 'query': 'Coldplay Viva La Vida'}, {'type': 'search', 'query': 'Imagine Dragons Believer'}, {'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'}]
+[2025-05-04 20:24:49,889] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Adele Hello'} (bulk=True)
+[2025-05-04 20:24:49,894] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Coldplay Viva La Vida'} (bulk=True)
+[2025-05-04 20:24:49,895] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Imagine Dragons Believer'} (bulk=True)
+[2025-05-04 20:24:49,898] INFO seekbeat: YT-API search for term={'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'} (bulk=True)
+[2025-05-04 20:24:51,104] DEBUG seekbeat: Request success for term=Coldplay Viva La Vida
+[2025-05-04 20:24:51,104] DEBUG seekbeat: YT-API returned 10 items for term=Coldplay Viva La Vida
+[2025-05-04 20:24:51,720] DEBUG seekbeat: Request success for term=Imagine Dragons Believer
+[2025-05-04 20:24:51,720] DEBUG seekbeat: YT-API returned 10 items for term=Imagine Dragons Believer
+[2025-05-04 20:24:51,921] DEBUG seekbeat: Request success for term=Adele Hello
+[2025-05-04 20:24:51,937] DEBUG seekbeat: YT-API returned 10 items for term=Adele Hello
+[2025-05-04 20:24:57,819] INFO seekbeat: Bulk search completed with 4 terms
+[2025-05-04 20:28:20,388] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+[2025-05-04 20:30:10,805] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+
+
+
+[2025-05-04 20:30:36,611] INFO seekbeat: Received bulk search request: Adele Hello,Coldplay Viva La Vida,Imagine Dragons Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
+[2025-05-04 20:30:36,611] DEBUG seekbeat: Classified bulk terms: [{'type': 'search', 'query': 'Adele Hello'}, {'type': 'search', 'query': 'Coldplay Viva La Vida'}, {'type': 'search', 'query': 'Imagine Dragons Believer'}, {'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'}]
+[2025-05-04 20:30:36,627] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Adele Hello'} (bulk=True)
+[2025-05-04 20:30:36,629] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Coldplay Viva La Vida'} (bulk=True)
+[2025-05-04 20:30:36,631] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Imagine Dragons Believer'} (bulk=True)
+[2025-05-04 20:30:36,633] INFO seekbeat: YT-API search for term={'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'} (bulk=True)
+[2025-05-04 20:30:36,634] ERROR seekbeat: Error fetching data for YouTube link https://www.youtube.com/shorts/XU70gQ1GY-I: cannot access local variable 'query' where it is not associated with a value
+Traceback (most recent call last):
+  File "C:\Users\pc\Desktop\Projects\SeekBeat\search\search_engine.py", line 176, in _wrapped_search
+    data = await self.regular_search_with_yt_api(term, max_results=max_results_per_term, bulk=True)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc\Desktop\Projects\SeekBeat\search\search_engine.py", line 269, in regular_search_with_yt_api
+    return await self.regular_search(search_term)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\pc\Desktop\Projects\SeekBeat\search\search_engine.py", line 92, in regular_search
+    logger.info("yt-dlp search for query=%s", query)
+                                              ^^^^^
+UnboundLocalError: cannot access local variable 'query' where it is not associated with a value
+[2025-05-04 20:30:37,444] DEBUG seekbeat: Request success for term=Adele Hello
+[2025-05-04 20:30:37,444] DEBUG seekbeat: YT-API returned 10 items for term=Adele Hello
+[2025-05-04 20:30:37,527] DEBUG seekbeat: Request success for term=Imagine Dragons Believer
+[2025-05-04 20:30:37,527] DEBUG seekbeat: YT-API returned 10 items for term=Imagine Dragons Believer
+[2025-05-04 20:30:37,564] DEBUG seekbeat: Request success for term=Coldplay Viva La Vida
+[2025-05-04 20:30:37,564] DEBUG seekbeat: YT-API returned 10 items for term=Coldplay Viva La Vida
+[2025-05-04 20:30:38,982] INFO seekbeat: Bulk search completed with 4 terms
+[2025-05-04 20:31:45,445] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+[2025-05-04 20:31:56,271] INFO seekbeat: Received bulk search request: Adele Hello,Coldplay Viva La Vida,Imagine Dragons Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
+[2025-05-04 20:31:56,271] DEBUG seekbeat: Classified bulk terms: [{'type': 'search', 'query': 'Adele Hello'}, {'type': 'search', 'query': 'Coldplay Viva La Vida'}, {'type': 'search', 'query': 'Imagine Dragons Believer'}, {'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'}]
+[2025-05-04 20:31:56,287] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Adele Hello'} (bulk=True)
+[2025-05-04 20:31:56,290] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Coldplay Viva La Vida'} (bulk=True)
+[2025-05-04 20:31:56,292] INFO seekbeat: YT-API search for term={'type': 'search', 'query': 'Imagine Dragons Believer'} (bulk=True)
+[2025-05-04 20:31:56,294] INFO seekbeat: YT-API search for term={'type': 'youtube', 'query': 'https://www.youtube.com/shorts/XU70gQ1GY-I'} (bulk=True)
+[2025-05-04 20:31:56,294] INFO seekbeat: yt-dlp search for query=https://www.youtube.com/shorts/XU70gQ1GY-I
+[2025-05-04 20:31:57,206] DEBUG seekbeat: Request success for term=Adele Hello
+[2025-05-04 20:31:57,206] DEBUG seekbeat: YT-API returned 10 items for term=Adele Hello
+[2025-05-04 20:31:57,304] DEBUG seekbeat: Request success for term=Coldplay Viva La Vida
+[2025-05-04 20:31:57,305] DEBUG seekbeat: YT-API returned 10 items for term=Coldplay Viva La Vida
+[2025-05-04 20:31:57,368] DEBUG seekbeat: Request success for term=Imagine Dragons Believer
+[2025-05-04 20:31:57,370] DEBUG seekbeat: YT-API returned 10 items for term=Imagine Dragons Believer
+[2025-05-04 20:32:01,653] DEBUG seekbeat: yt-dlp returned type=None for query=https://www.youtube.com/shorts/XU70gQ1GY-I
+[2025-05-04 20:32:01,653] INFO seekbeat: Bulk search completed with 4 terms
+[2025-05-04 20:43:32,116] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
+[2025-05-04 20:44:46,214] DEBUG seekbeat: Initializing SearchEngine with config: {'format': 'bestaudio/best', 'quiet': True, 'skip_download': True, 'no_warnings': True, 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36'}
