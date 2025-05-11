@@ -10,15 +10,13 @@ from rest_framework.response import Response
 from drf_spectacular.utils import OpenApiExample
 
 logger = logging.getLogger('seekbeat')
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 # Check all handlers
-print(logger.handlers)
-logger.debug("Testing log output")
+# print(logger.handlers)
+# logger.debug("Testing log output")
 
 
-
-# Documentation
 
 
 
