@@ -108,5 +108,27 @@
         "solution-desc": "Changed to regular def views and wrapped async calls with async_to_sync().",
         "solution-snippet": "def search_view(request):\\n    result = async_to_sync(engine.regular_search)(query)\\n    return JsonResponse(...)",
         "time-taken": "40m"
+    },
+    {
+        "id": "011",
+        "title": "Could not enter input in Spectacular API UI",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Swagger UI section for testing endpoints appeared read-only. Thought manual config was needed to enable input.",
+        "snippet": "",
+        "solution-desc": "Realized I needed to click the 'Try it out' button to enable editing and input.",
+        "solution-snippet": "",
+        "time-taken": "5m"
+    },
+    {
+        "id": "012",
+        "title": "No logging output in Django app",
+        "tag": "solved",
+        "language": "python",
+        "desc": "Logging stopped appearing after working the first few days. Thought it was broken.",
+        "snippet": "",
+        "solution-desc": "The active log file was seekbeat.log and not the dated rotated files like seekbeat.log.2025-05-10. I was checking the wrong file.",
+        "solution-snippet": "",
+        "time-taken": "25m"
     }
 ]

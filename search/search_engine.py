@@ -63,6 +63,7 @@ class SearchEngine:
         self.max_concurrent_searches = 5
         self._sem = asyncio.Semaphore(self.max_concurrent_searches)
         self.max_query_length = 500
+        self.max_bulk_search = 10
         self.BULK_API_KEY=os.getenv('BULK_SEARCH_YOUTUBE_API_KEY')
         self.NORMAL_API_KEY=os.getenv('NORMAL_SEARCH_YOUTUBE_API_KEY')
 
@@ -216,7 +217,7 @@ class SearchEngine:
                 logging.debug(f"Starting search for {term}")
                 return await self._wrapped_search(term, max_results_per_term)
 
-        tasks = [asyncio.create_task(sem_wrapped(term)) for term in search_terms]
+        tasks = [asyncio.create_task(sem_wrapped(term)) for term in (search_terms if len(search_terms) <= self.max_bulk_search else search_terms[:self.max_bulk_search])]
         return await asyncio.gather(*tasks)
     
 

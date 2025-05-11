@@ -173,3 +173,4 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 .seek-venv
+logs/seekbeat.log.*

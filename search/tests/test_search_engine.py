@@ -162,6 +162,20 @@ class TestSearchEngine(unittest.TestCase):
         self.assertEqual(len(bulk), 2)
         self.assertIn('results', bulk[0])
 
+
+    @patch.object(SearchEngine, "regular_search_with_yt_api", new_callable=AsyncMock)
+    def test_wrapped_search_and_bulk_with_exceeding_queries(self, mock_api):
+        # simulate single term
+        mock_api.return_value = [ {'title':'X'} ]
+        eng = SearchEngine()
+        wrapped = asyncio.run(eng._wrapped_search({'type':'search','query':'foo'}, 1))
+        self.assertEqual(wrapped['count'], 1)
+        # bulk
+        bulk = asyncio.run(eng.bulk_search([{'type':'search','query': chr(ord('a')+i)} for i in range(26)]))
+        self.assertEqual(len(bulk), eng.max_bulk_search)
+        self.assertIn('results', bulk[0])
+
+
     @patch.object(SearchEngine, '_retry_request')
     def test_regular_search_api_quota_limit(self, mock_retry):
         self.engine.NORMAL_API_KEY = 'fake-key'  # Simulate valid key
@@ -203,6 +217,7 @@ class TestSearchEngine(unittest.TestCase):
         self.assertIsInstance(result, dict)
         self.assertIn('error', result)
         self.assertIn('Unsupported URL', result['error'])
+
 
         
 
