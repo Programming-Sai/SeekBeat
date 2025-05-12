@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'drf_spectacular',
     'rest_framework',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -50,6 +51,13 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+]
+
+# CORS_ALLOW_ALL_ORIGINS = True  # For testing; you can specify origins like:
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
 ]
 
 ROOT_URLCONF = 'seekbeat.urls'
@@ -164,6 +172,8 @@ LOGGING = {
             'backupCount': 30,  # Keep logs for 30 days
             'formatter': 'verbose',
             'encoding': 'utf8',
+            'delay': True,  # ✅ This prevents early file locking
+            'utc':  False,  # ✅ Use consistent UTC time for rotation checks
         },
     },
 

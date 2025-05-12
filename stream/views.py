@@ -1,6 +1,7 @@
 # streaming/views.py
 
 import logging
+from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,11 +12,14 @@ from django.shortcuts import redirect, render
 from .streaming_engine import StreamingEngine
 
 logger = logging.getLogger('seekbeat')
+handler = logging.getLogger('seekbeat').handlers[0]
+handler.doRollover()
+
 # logger.setLevel(logging.DEBUG)
 
 # Check all handlers
 # print(logger.handlers)
-# logger.debug("Testing log output")
+logger.debug("Testing log output")
 
 
 engine = StreamingEngine()
@@ -71,8 +75,7 @@ def stream_url_view(request, video_url):
         logger.exception("Stream extraction failed for %s", video_url)
         return Response({"error": "Failed to extract stream URL."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-
+# http://localhost:8000/api/stream/vEvlZVhs090/
 
 
 
@@ -84,3 +87,6 @@ def stream_test_view(request):
     stream_info = engine.extract_stream_url(stream_url)
     return redirect(stream_info["stream_url"])
     # return render(request, 'streaming/test_player.html', {'stream_url': stream_url, 'title': title})
+
+
+# http://localhost:8000/api/stream/test/?id=dQw4w9WgXcQ
