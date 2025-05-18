@@ -1,7 +1,7 @@
 # streaming/views.py
 
 import logging
-from django.http import JsonResponse
+from django.http import StreamingHttpResponse, JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -56,24 +56,44 @@ engine = StreamingEngine()
     },
     tags=["Streaming"]
 )
-@api_view(["GET"])
+@api_view(["GET", "POST"])
 @ratelimit(key='ip', rate='30/m', block=True)
 def stream_url_view(request, video_url):
-    logger.info("Stream request from %s for video_url=%s", request.META.get("REMOTE_ADDR"), video_url)
+    if request.method == "GET":
+        logger.info("Stream request from %s for video_url=%s", request.META.get("REMOTE_ADDR"), video_url)
 
-    if not video_url:
-        logger.warning("Missing video URL in path")
-        return Response({"error": "Missing YouTube video URL."}, status=status.HTTP_400_BAD_REQUEST)
+        if not video_url:
+            logger.warning("Missing video URL in path")
+            return Response({"error": "Missing YouTube video URL."}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        full_url = f"https://www.youtube.com/watch?v={video_url}"
-        data = engine.extract_stream_url(full_url)
-        # data = engine.extract_stream_url(video_url)
-        logger.info("Stream URL extracted successfully for %s", video_url)
-        return Response(data)
-    except Exception as e:
-        logger.exception("Stream extraction failed for %s", video_url)
-        return Response({"error": "Failed to extract stream URL."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        try:
+            full_url = f"https://www.youtube.com/watch?v={video_url}"
+            data = engine.extract_stream_url(full_url)
+            # data = engine.extract_stream_url(video_url)
+            logger.info("Stream URL extracted successfully for %s", video_url)
+            return Response(data)
+        except Exception as e:
+            logger.exception("Stream extraction failed for %s", video_url)
+            return Response({"error": "Failed to extract stream URL."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    elif request.method == "POST":
+
+        data = request.data
+        video_url = data.get("url")
+        edits = data.get("edits", {})
+
+        if not video_url:
+            return JsonResponse({"error": "Missing URL"}, status=400)
+
+        try:
+            stream = engine.stream_with_edits(video_url, edits)
+            response = StreamingHttpResponse(stream, content_type="audio/mpeg")
+            response["Content-Disposition"] = 'attachment; filename="edited_audio.mp3"'
+            return response
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+
 
 # http://localhost:8000/api/stream/vEvlZVhs090/
 
@@ -90,3 +110,6 @@ def stream_test_view(request):
 
 
 # http://localhost:8000/api/stream/test/?id=dQw4w9WgXcQ
+
+
+

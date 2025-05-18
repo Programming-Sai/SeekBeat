@@ -174,3 +174,4 @@ cython_debug/
 .pypirc
 .seek-venv
 logs/seekbeat.log*
+ffmpeg/ffmpeg.exe

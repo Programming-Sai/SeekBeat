@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Audio Stream</title>
+</head>
+<body>
+  <h2>Stream Edited Audio</h2>
+  <input id="url" type="text" placeholder="YouTube URL" size="50" /><br><br>
+  <label>Start Time (seconds): <input id="start" type="number" /></label><br>
+  <label>End Time (seconds): <input id="end" type="number" /></label><br>
+  <label>Speed (e.g., 1.25): <input id="speed" type="text" /></label><br>
+  <label>Volume (e.g., 1.5): <input id="volume" type="text" /></label><br><br>
+
+  <button onclick="download()">Download Edited Audio</button>
+
+  <script>
+    function download() {
+      const url = document.getElementById("url").value;
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const speed = document.getElementById("speed").value;
+      const volume = document.getElementById("volume").value;
+
+      const body = {
+        url: url,
+        edits: {}
+      };
+
+      if (start) body.edits.start_time = parseFloat(start);
+      if (end) body.edits.end_time = parseFloat(end);
+      if (speed) body.edits.speed = parseFloat(speed);
+      if (volume) body.edits.volume = parseFloat(volume);
+
+      fetch("http://localhost:8000/api/stream/V_N1MavsGJE/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      })
+      .then(res => res.blob())
+      .then(blob => {
+        const link = document.createElement("a");
+        link.href = window.URL.createObjectURL(blob);
+        link.download = "edited_audio.mp3";
+        link.click();
+      })
+      .catch(err => alert("Error: " + err));
+    }
+  </script>
+</body>
+</html>
