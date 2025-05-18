@@ -4,6 +4,8 @@ import imageio_ffmpeg
 import os
 import shutil
 
+desktop_mode = False
+
 
 class StreamingEngine:
     def __init__(self):
@@ -44,6 +46,12 @@ class StreamingEngine:
         except Exception as e:
             raise RuntimeError(f"Failed to extract stream URL: {str(e)}")
 
+
+
+
+
+
+
     def stream_with_edits(self, video_url, edits: dict):
         info = self.extract_stream_url(video_url)
         input_url = info["stream_url"]
@@ -59,27 +67,40 @@ class StreamingEngine:
             "-loglevel", "quiet"
         ]
 
-        # Apply trim
-        if "start_time" in edits:
-            cmd.insert(1, "-ss")
-            cmd.insert(2, str(edits["start_time"]))
-        if "end_time" in edits:
-            cmd += ["-to", str(edits["end_time"])]
+        if edits:
+            # Apply trim
+            trim = edits.get("trim", {})
+            if "start_time" in trim:
+                cmd.insert(1, "-ss")
+                cmd.insert(2, str(trim["start_time"]))
+            if "end_time" in trim:
+                cmd += ["-to", str(trim["end_time"])]
 
-        # Build filter chain
-        filters = []
+            # Build audio filter chain
+            filters = []
 
-        if "volume" in edits:
-            filters.append(f"volume={edits['volume']}")
-        if "speed" in edits:
-            # Speed affects tempo and pitch unless compensated
-            filters.append(f"atempo={edits['speed']}")
+            if "volume" in edits:
+                filters.append(f"volume={edits['volume']}")
 
-        if filters:
-            cmd += ["-af", ",".join(filters)]
+            if "speed" in edits:
+                speed = edits["speed"]
+                if 0.5 <= speed <= 2.0:
+                    filters.append(f"atempo={speed}")
+                else:
+                    raise ValueError("Speed must be between 0.5 and 2.0 for 'atempo' filter.")
+
+            if filters:
+                cmd += ["-af", ",".join(filters)]
+
+            # Metadata injection (only if desktop_mode)
+            if desktop_mode and "metadata" in edits:
+                for key, value in edits["metadata"].items():
+                    if key == "upload_date":
+                        value = value[:10]
+                    cmd += ["-metadata", f"{key}={value}"]
+
 
         cmd += ["-"]
-        # print(cmd)
 
         # Pipe output to response
         try:

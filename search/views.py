@@ -19,10 +19,9 @@ logger = logging.getLogger('seekbeat')
 
 
 
+# Normal Search Testing endpoint + parameters = http://127.0.0.1:8000/api/search/?query=MAn%20of%20steel
 
-# Normal Search Testing endpoint + parameters = http://127.0.0.1:8000/search/?query=MAn%20of%20steel
-
-# Bulk Search Testing enpoint + parameters = http://127.0.0.1:8000/search/bulk/?queries=Adele%20Hello,Coldplay%20Viva%20La%20Vida,Imagine%20Dragons%20Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
+# Bulk Search Testing enpoint + parameters = http://127.0.0.1:8000/api/search/bulk/?queries=Adele%20Hello,Coldplay%20Viva%20La%20Vida,Imagine%20Dragons%20Believer,https://www.youtube.com/shorts/XU70gQ1GY-I
 
 
 engine = SearchEngine()
