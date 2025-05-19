@@ -80,6 +80,15 @@ engine = StreamingEngine()
             },
             request_only=True,
             response_only=False
+        ),
+        OpenApiExample(
+            name="No Edits Stream (POST)",
+            summary="Example empty edits payload (for normal downloads)",
+            value={
+                "edits": {}
+            },
+            request_only=True,
+            response_only=False
         )
     ]
 )
@@ -114,9 +123,12 @@ def stream_url_view(request, video_url):
 
         try:
             full_url = f"https://www.youtube.com/watch?v={video_url}"
-            stream = engine.stream_with_edits(full_url, edits)
+            info = engine.extract_stream_url(video_url)
+            input_src = info["stream_url"]
+            title = info["title"]
+            stream = engine.stream_with_edits(input_src, edits)
             response = StreamingHttpResponse(stream, content_type="audio/mpeg")
-            response["Content-Disposition"] = 'attachment; filename="edited_audio.mp3"'
+            response["Content-Disposition"] = f'attachment; filename="{title}.mp3"'
             return response
         except Exception as e:
             print(str(e))
@@ -125,7 +137,6 @@ def stream_url_view(request, video_url):
 
 
 # http://localhost:8000/api/stream/vEvlZVhs090/
-
 
 
 

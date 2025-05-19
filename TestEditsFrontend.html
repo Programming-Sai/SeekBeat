@@ -79,7 +79,7 @@
         const blob = await response.blob();
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = "edited_audio.mp3";
+        link.download = `${title}.mp3`;
         link.click();
       } catch (err) {
         console.log(err)
