@@ -1,5 +1,7 @@
 # Problem Tracker<br><br>
 ## 📋 Table of Contents<br>
+- [Return after metadata branch to prevent double‐streaming](#🆔-014---return-after-metadata-branch-to-prevent-doublestreaming)
+
 - [JSON.stringify needed with Django FormData](#🆔-013---jsonstringify-needed-with-django-formdata)
 
 - [No logging output in Django app](#🆔-012---no-logging-output-in-django-app)
@@ -27,6 +29,32 @@
 - [Unable to Stop Server Using Ctrl+C in IDE Terminal](#🆔-001---unable-to-stop-server-using-ctrlc-in-ide-terminal)
 
 ---
+
+---
+### 🆔 014 - Return after metadata branch to prevent double‐streaming
+<br>**Status:** ✅ Solved
+
+**Language:** Python
+
+**Time Taken:** 10m
+
+### 🐞 Problem Description<br>
+Without an early return after streaming the metadata‐injected file, the FFmpeg pipe branch also ran—resulting in the track being sent twice back‐to‐back.
+
+```python
+with open(input_src, 'rb') as f: … yield chunk  # but no return here, so FFmpeg stream also runs
+```
+				
+### ✅ Solution Description
+<br>
+Added return immediately after the metadata file loop so the generator stops before hitting the FFmpeg pipe.
+
+```python
+    with open(input_src, 'rb') as f:\n        for chunk in iter(lambda: f.read(8192), b''):\n            yield chunk\n    return
+```
+				
+<br>
+<br>
 
 ---
 ### 🆔 013 - JSON.stringify needed with Django FormData

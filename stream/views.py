@@ -26,36 +26,62 @@ logger.debug("Testing log output")
 engine = StreamingEngine()
 
 
-
-
 @extend_schema(
     summary="Stream YouTube Audio",
-    description="This endpoint extracts and returns a direct streamable audio URL from a YouTube link. "
-                "The link must point to a valid individual video (not a playlist or mix). "
-                "It is used to power frontend audio players or local streaming modules.",
+    description=(
+        "GET returns stream metadata; POST streams edited audio. "
+        "Provide `edits` JSON with speed, trim, volume, metadata fields."
+    ),
     parameters=[
         OpenApiParameter(
-            name='url',
-            description='Direct YouTube video URL',
+            name='video_url',
+            description='YouTube ID',
             required=True,
             type=str,
             location=OpenApiParameter.PATH
         ),
     ],
+    request=OpenApiTypes.OBJECT,
+    responses={
+        200: OpenApiResponse(
+            description="Stream metadata JSON or audio/mpeg stream",
+        ),
+        400: OpenApiResponse(description="Invalid request data"),
+        500: OpenApiResponse(description="Internal server error")
+    },
+    methods=["GET", "POST"],
+    tags=["Streaming"],
     examples=[
         OpenApiExample(
-            name="Valid YouTube video link",
-            value="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            summary="Returns stream URL for this video"
+            name="Fetch Stream URL (GET)",
+            summary="Successful GET response",
+            value={"stream_url": "...", "title": "...", "duration": 123, "thumbnail": "..."},
+            response_only=True,
+            request_only=False
+        ),
+        OpenApiExample(
+            name="Edited Stream (POST)",
+            summary="Example edits payload",
+            value={
+                "edits": {
+                    "speed": 1.25,
+                    "trim": {"start_time": 10, "end_time": 120},
+                    "volume": 0.5,
+                    "metadata": {
+                        "title": "The High Seas' Anthem",
+                        "artist": "Pirate Sea Shanty - Topic",
+                        "album": "Sea Shanties Vol.1",
+                        "date": "2025-05-19",
+                        "genre": "Folk",
+                        "url": "https://youtu.be/V_N1MavsGJE",
+                        "thumbnail": "https://i.ytimg.com/vi_webp/V_N1MavsGJE/maxresdefault.webp"
+                    }
+                }
+            },
+            request_only=True,
+            response_only=False
         )
-    ],
-    methods=["GET"],
-    responses={
-        200: OpenApiTypes.OBJECT,
-        400: OpenApiResponse(description="Missing or invalid YouTube link"),
-        500: OpenApiResponse(description="Extraction failed or internal error")
-    },
-    tags=["Streaming"]
+    ]
 )
 @api_view(["GET", "POST"])
 @ratelimit(key='ip', rate='30/m', block=True)

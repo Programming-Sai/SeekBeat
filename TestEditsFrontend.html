@@ -24,10 +24,11 @@
   <!-- Metadata Fields -->
   <fieldset>
     <legend><strong>Metadata (Optional)</strong></legend>
-    <label>Title: <input id="title" type="text" /></label><br>
-    <label>Artist: <input id="artist" type="text" /></label><br>
-    <label>Album: <input id="album" type="text" /></label><br>
-    <label>Cover Art (JPEG/PNG): <input id="cover" type="file" accept="image/*" /></label>
+    <label>Title: <input value="The High Seas' Anthem" id="title" type="text" /></label><br>
+    <label>Artist: <input value="Pirate Sea Shanty - Topic" id="artist" type="text" /></label><br>
+    <label>Url: <input value="https://www.youtube.com/watch?v=V_N1MavsGJE" id="url" type="text" /></label><br>
+    <label>Cover Art (JPEG/PNG): <input value="https://i.ytimg.com/vi_webp/V_N1MavsGJE/maxresdefault.webp" id="thumbnail" type="text" /></label><br>
+    <!-- <label>Cover Art (JPEG/PNG): <input value="https://i.ytimg.com/vi_webp/V_N1MavsGJE/maxresdefault.webp" id="thumbnail" type="file" accept="image/*" /></label> -->
   </fieldset>
 
   <br>
@@ -36,15 +37,14 @@
   <script>
     async function download() {
         const videoId = "V_N1MavsGJE"; 
-    //   const url = document.getElementById("url").value.trim();
       const start = document.getElementById("start").value;
       const end = document.getElementById("end").value;
       const speed = document.getElementById("speed").value;
       const volume = document.getElementById("volume").value;
       const title = document.getElementById("title").value.trim();
       const artist = document.getElementById("artist").value.trim();
-      const album = document.getElementById("album").value.trim();
-      const coverFile = document.getElementById("cover").files[0];
+      const url = document.getElementById("url").value.trim();
+      const thumbnail = document.getElementById("thumbnail").value.trim();
 
       const edits = {};
       if (start || end) {
@@ -56,21 +56,17 @@
       if (speed) edits.speed = parseFloat(speed);
       if (volume) edits.volume = parseFloat(volume);
 
-      const metadata = {};
-      if (title) metadata.title = title;
-      if (artist) metadata.artist = artist;
-      if (album) metadata.album = album;
+      edits.metadata = {};
+      if (title) edits.metadata.title = title;
+      if (artist) edits.metadata.artist = artist;
+      if (url) edits.metadata.url = url;
+      if (thumbnail) edits.metadata.thumbnail = thumbnail;
 
       const formData = new FormData();
-    //   formData.append("url", url);
       formData.append("edits", JSON.stringify(edits));
       console.log(edits);
-      if (Object.keys(metadata).length > 0) {
-        formData.append("metadata", JSON.stringify(metadata));
-      }
-      if (coverFile) {
-        formData.append("cover", coverFile);
-      }
+
+      
 
       try {
         const response = await fetch(`http://localhost:8000/api/stream/${videoId}/`, {
