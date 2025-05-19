@@ -101,7 +101,7 @@ class StreamingEngine:
         """
         try:
             print(edits)
-            temp_cleanup_mp3 = temp_cleanup_jpg = None
+            temp_cleanup_mp3 = temp_cleanup_jpg = None  
 
             # Real-time streaming via FFmpeg pipe
             cmd = [
