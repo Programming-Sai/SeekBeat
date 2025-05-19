@@ -1,5 +1,7 @@
 # Problem Tracker<br><br>
 ## 📋 Table of Contents<br>
+- [JSON.stringify needed with Django FormData](#🆔-013---jsonstringify-needed-with-django-formdata)
+
 - [No logging output in Django app](#🆔-012---no-logging-output-in-django-app)
 
 - [Could not enter input in Spectacular API UI](#🆔-011---could-not-enter-input-in-spectacular-api-ui)
@@ -25,6 +27,32 @@
 - [Unable to Stop Server Using Ctrl+C in IDE Terminal](#🆔-001---unable-to-stop-server-using-ctrlc-in-ide-terminal)
 
 ---
+
+---
+### 🆔 013 - JSON.stringify needed with Django FormData
+<br>**Status:** ✅ Solved
+
+**Language:** Python
+
+**Time Taken:** 35m
+
+### 🐞 Problem Description<br>
+Sending plain objects in FormData to Django without JSON.stringify results in '[object Object]'. Django receives it as a string, not valid JSON.
+
+```python
+formData.append('edits', edits)  // causes 'str' object has no attribute 'get'
+```
+				
+### ✅ Solution Description
+<br>
+Stringified the object before appending. Parsed it safely on Django side with json.loads.
+
+```python
+formData.append('edits', JSON.stringify(edits))\n...\nedits_raw = request.data.get('edits', '{}')\nedits = json.loads(edits_raw) if isinstance(edits_raw, str) else edits_raw
+```
+				
+<br>
+<br>
 
 ---
 ### 🆔 012 - No logging output in Django app

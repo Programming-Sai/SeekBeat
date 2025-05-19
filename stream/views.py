@@ -1,5 +1,6 @@
 # streaming/views.py
 
+import json
 import logging
 from django.http import StreamingHttpResponse, JsonResponse
 from rest_framework.decorators import api_view
@@ -59,12 +60,13 @@ engine = StreamingEngine()
 @api_view(["GET", "POST"])
 @ratelimit(key='ip', rate='30/m', block=True)
 def stream_url_view(request, video_url):
+    if not video_url:
+        logger.warning("Missing video URL in path")
+        return Response({"error": "Missing YouTube video URL."}, status=status.HTTP_400_BAD_REQUEST)
+    
+
     if request.method == "GET":
         logger.info("Stream request from %s for video_url=%s", request.META.get("REMOTE_ADDR"), video_url)
-
-        if not video_url:
-            logger.warning("Missing video URL in path")
-            return Response({"error": "Missing YouTube video URL."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             full_url = f"https://www.youtube.com/watch?v={video_url}"
@@ -77,20 +79,21 @@ def stream_url_view(request, video_url):
             return Response({"error": "Failed to extract stream URL."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     elif request.method == "POST":
+        raw_edits = request.data.get("edits", "{}")
 
-        data = request.data
-        video_url = data.get("url")
-        edits = data.get("edits", {})
-
-        if not video_url:
-            return JsonResponse({"error": "Missing URL"}, status=400)
+        if isinstance(raw_edits, str):
+            edits = json.loads(raw_edits)
+        else:
+            edits = raw_edits  # already a dict (like when using Postman or API clients)
 
         try:
-            stream = engine.stream_with_edits(video_url, edits)
+            full_url = f"https://www.youtube.com/watch?v={video_url}"
+            stream = engine.stream_with_edits(full_url, edits)
             response = StreamingHttpResponse(stream, content_type="audio/mpeg")
             response["Content-Disposition"] = 'attachment; filename="edited_audio.mp3"'
             return response
         except Exception as e:
+            print(str(e))
             return JsonResponse({"error": str(e)}, status=500)
 
 

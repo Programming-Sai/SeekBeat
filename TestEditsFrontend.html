@@ -5,45 +5,90 @@
 </head>
 <body>
   <h2>Stream Edited Audio</h2>
-  <input id="url" type="text" placeholder="YouTube URL" size="50" /><br><br>
-  <label>Start Time (seconds): <input id="start" type="number" /></label><br>
-  <label>End Time (seconds): <input id="end" type="number" /></label><br>
-  <label>Speed (e.g., 1.25): <input id="speed" type="text" /></label><br>
-  <label>Volume (e.g., 1.5): <input id="volume" type="text" /></label><br><br>
 
+  <!-- YouTube URL -->
+  <!-- <label>YouTube URL:</label> -->
+  <!-- <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=..." size="50" /><br><br> -->
+
+  <!-- Edits -->
+  <fieldset>
+    <legend><strong>Edits</strong></legend>
+    <label>Start Time (seconds): <input value="30" id="start" type="number" step="0.1" /></label><br>
+    <label>End Time (seconds): <input value="130" id="end" type="number" step="0.1" /></label><br>
+    <label>Speed (0.5–2.0): <input value="2" id="speed" type="number" step="0.1" /></label><br>
+    <label>Volume (0.5–5.0): <input value="5" id="volume" type="number" step="0.1" /></label>
+  </fieldset>
+
+  <br>
+
+  <!-- Metadata Fields -->
+  <fieldset>
+    <legend><strong>Metadata (Optional)</strong></legend>
+    <label>Title: <input id="title" type="text" /></label><br>
+    <label>Artist: <input id="artist" type="text" /></label><br>
+    <label>Album: <input id="album" type="text" /></label><br>
+    <label>Cover Art (JPEG/PNG): <input id="cover" type="file" accept="image/*" /></label>
+  </fieldset>
+
+  <br>
   <button onclick="download()">Download Edited Audio</button>
 
   <script>
-    function download() {
-      const url = document.getElementById("url").value;
+    async function download() {
+        const videoId = "V_N1MavsGJE"; 
+    //   const url = document.getElementById("url").value.trim();
       const start = document.getElementById("start").value;
       const end = document.getElementById("end").value;
       const speed = document.getElementById("speed").value;
       const volume = document.getElementById("volume").value;
+      const title = document.getElementById("title").value.trim();
+      const artist = document.getElementById("artist").value.trim();
+      const album = document.getElementById("album").value.trim();
+      const coverFile = document.getElementById("cover").files[0];
 
-      const body = {
-        url: url,
-        edits: {}
-      };
+      const edits = {};
+      if (start || end) {
+        edits.trim = {};
+        if (start) edits.trim.start_time = parseFloat(start);
+        if (end) edits.trim.end_time = parseFloat(end);
+      }
 
-      if (start) body.edits.start_time = parseFloat(start);
-      if (end) body.edits.end_time = parseFloat(end);
-      if (speed) body.edits.speed = parseFloat(speed);
-      if (volume) body.edits.volume = parseFloat(volume);
+      if (speed) edits.speed = parseFloat(speed);
+      if (volume) edits.volume = parseFloat(volume);
 
-      fetch("http://localhost:8000/api/stream/V_N1MavsGJE/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      })
-      .then(res => res.blob())
-      .then(blob => {
+      const metadata = {};
+      if (title) metadata.title = title;
+      if (artist) metadata.artist = artist;
+      if (album) metadata.album = album;
+
+      const formData = new FormData();
+    //   formData.append("url", url);
+      formData.append("edits", JSON.stringify(edits));
+      console.log(edits);
+      if (Object.keys(metadata).length > 0) {
+        formData.append("metadata", JSON.stringify(metadata));
+      }
+      if (coverFile) {
+        formData.append("cover", coverFile);
+      }
+
+      try {
+        const response = await fetch(`http://localhost:8000/api/stream/${videoId}/`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) throw new Error("Server returned error");
+
+        const blob = await response.blob();
         const link = document.createElement("a");
-        link.href = window.URL.createObjectURL(blob);
+        link.href = URL.createObjectURL(blob);
         link.download = "edited_audio.mp3";
         link.click();
-      })
-      .catch(err => alert("Error: " + err));
+      } catch (err) {
+        console.log(err)
+        alert("Download failed: " + err.message);
+      }
     }
   </script>
 </body>

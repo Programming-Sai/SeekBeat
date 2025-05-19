@@ -3,6 +3,12 @@ import subprocess
 import imageio_ffmpeg
 import os
 import shutil
+import logging
+
+logger = logging.getLogger('seekbeat')
+handler = logging.getLogger('seekbeat').handlers[0]
+handler.doRollover()
+
 
 desktop_mode = False
 
@@ -56,6 +62,8 @@ class StreamingEngine:
         info = self.extract_stream_url(video_url)
         input_url = info["stream_url"]
 
+        print(edits)
+
         # Start building ffmpeg command
         cmd = [
             self.ffmpeg_path,
@@ -74,20 +82,20 @@ class StreamingEngine:
                 cmd.insert(1, "-ss")
                 cmd.insert(2, str(trim["start_time"]))
             if "end_time" in trim:
-                cmd += ["-to", str(trim["end_time"])]
+                cmd.insert(3, "-to")
+                cmd.insert(4, str(trim["end_time"]))
+
 
             # Build audio filter chain
             filters = []
 
             if "volume" in edits:
-                filters.append(f"volume={edits['volume']}")
+                volume = edits['volume'] 
+                filters.append(f"volume={max(0.5, min(volume, 5))}")
 
             if "speed" in edits:
                 speed = edits["speed"]
-                if 0.5 <= speed <= 2.0:
-                    filters.append(f"atempo={speed}")
-                else:
-                    raise ValueError("Speed must be between 0.5 and 2.0 for 'atempo' filter.")
+                filters.append(f"atempo={max(0.5, min(speed, 2))}")
 
             if filters:
                 cmd += ["-af", ",".join(filters)]
@@ -102,9 +110,15 @@ class StreamingEngine:
 
         cmd += ["-"]
 
+        logger.debug("FFmpeg command: %s", " ".join(cmd))
+
+        # print("FFmpeg command:", " ".join(cmd))
+
+
         # Pipe output to response
         try:
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
             return process.stdout
         except Exception as e:
+            logger.error("FFmpeg failed with command: %s", " ".join(cmd))
             raise RuntimeError(f"Failed to stream with edits: {str(e)}")
