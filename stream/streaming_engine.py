@@ -89,7 +89,7 @@ class StreamingEngine:
 
 
 
-    def stream_with_edits(self, video_url, edits: dict):
+    def stream_with_edits(self, input_src, edits: dict):
         """
         Streams audio with optional edits and metadata injection.
         If edits are provided, performs a single FFmpeg pass with trimming, filters, converts to MP3,
@@ -101,8 +101,6 @@ class StreamingEngine:
         """
         try:
             print(edits)
-            info = self.extract_stream_url(video_url)
-            input_src = info["stream_url"]
             temp_cleanup_mp3 = temp_cleanup_jpg = None
 
             # Real-time streaming via FFmpeg pipe
