@@ -125,8 +125,9 @@ def stream_url_view(request, video_url):
             full_url = f"https://www.youtube.com/watch?v={video_url}"
             info = engine.extract_stream_url(video_url)
             input_src = info["stream_url"]
+            duration = info["duration"]
             title = info["title"]
-            stream = engine.stream_with_edits(input_src, edits)
+            stream = engine.stream_with_edits(input_src, edits, duration)
             response = StreamingHttpResponse(stream, content_type="audio/mpeg")
             response["Content-Disposition"] = f'attachment; filename="{title}.mp3"'
             return response

@@ -89,7 +89,7 @@ class StreamingEngine:
 
 
 
-    def stream_with_edits(self, input_src, edits: dict):
+    def stream_with_edits(self, input_src: str, edits: dict, duration: int):
         """
         Streams audio with optional edits and metadata injection.
         If edits are provided, performs a single FFmpeg pass with trimming, filters, converts to MP3,
@@ -136,13 +136,13 @@ class StreamingEngine:
             elif edits:
                 # Apply trim
                 trim = edits.get("trim", {})
-                if "start_time" in trim:
+                if "start_time" in trim and isinstance(trim["start_time"], (int, float)) and 0 <= trim["start_time"] <= duration:
                     cmd.insert(1, "-ss")
                     cmd.insert(2, str(trim["start_time"]))
-                if "end_time" in trim:
+
+                if "end_time" in trim and isinstance(trim["end_time"], (int, float)) and 0 <= trim["end_time"] <= duration:
                     cmd.insert(3, "-to")
                     cmd.insert(4, str(trim["end_time"]))
-
 
                 # Build audio filter chain
                 filters = []
