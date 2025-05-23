@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'rest_framework',
     'corsheaders',
+    'desktop_lan_connect',
 ]
 
 MIDDLEWARE = [

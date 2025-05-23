@@ -175,3 +175,4 @@ cython_debug/
 .seek-venv
 logs/seekbeat.log*
 ffmpeg/ffmpeg.exe
+desktop_lan_connect/lan_utils/qrcodes
