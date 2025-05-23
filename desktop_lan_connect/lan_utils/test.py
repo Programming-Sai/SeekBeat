@@ -14,7 +14,7 @@ def test_lan_creator():
         print("Create hotspot error:", e)
 
     try:
-        session = creator.initialize_session()
+        session = creator.initialize_session(allow_override=True)
         print("Session info:", session)
     except Exception as e:
         print("Session init error:", e)
