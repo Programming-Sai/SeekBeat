@@ -7,10 +7,10 @@ class DeviceProfile(models.Model):
     Tracks basic system stats and participation status.
     """
     device_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    device_name = models.CharField(max_length=100)
+    device_name = models.CharField(max_length=100, unique=True)
     os_version = models.CharField(max_length=50)
-    ram_mb = models.IntegerField()
-    storage_mb = models.IntegerField()
+    ram_mb = models.IntegerField(null=True, blank=True)
+    storage_mb = models.IntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     last_seen = models.DateTimeField(auto_now=True)
