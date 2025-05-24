@@ -49,6 +49,33 @@ class DeviceManager:
             raise PermissionError("Invalid access code. Please Provide a valid Access Code")
 
 
+    def reconnect(self, device_data, access_code, system_access_code):
+        """
+        Registers or updates a device in the LAN session.
+        """
+        if access_code and system_access_code and access_code == system_access_code:
+            device_id = device_data.get("device_id")
+
+
+            device = DeviceProfile.objects.filter(device_id=device_id).first()
+
+
+            if device:
+                device.is_active = True
+                device.save()
+            else:
+                raise ValueError(f"A device with id: {device_id} does not exist.")
+
+
+            return {
+                "device_id": str(device.device_id),
+                "message": f"{device.device_name} reconnected"
+            }, 200
+        else:
+            raise PermissionError("Invalid access code. Please Provide a valid Access Code")
+
+
+ 
 
     def disconnect(self, device_id, keep_data=False):
         """
@@ -67,6 +94,8 @@ class DeviceManager:
             device.delete()
 
         return {"message": f"{device.device_name} disconnected", "device_id": str(device_id)}, 200
+
+
 
 
     def get_active_devices(self, access_code, system_access_code):

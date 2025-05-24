@@ -219,6 +219,80 @@ def device_handshake_view(request):
 # http://localhost:8000/api/lan/device-connect/ With the Access-Code HEADER which would just be the access code
 
 
+
+
+@extend_schema(
+    summary="Reconnect Device",
+    description=(
+        "Reactivates a previously disconnected device by its device ID. "
+        "Requires an active LAN session and a valid access code in the headers. "
+        "Reconnection will update the device's last seen timestamp and set it as active."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="Access-Code",
+            type=str,
+            location=OpenApiParameter.HEADER,
+            required=True,
+            description="Access code required to authorize reconnection."
+        )
+    ],
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "device_id": {"type": "string"}
+            },
+            "required": ["device_id"]
+        }
+    },
+    responses={
+        200: OpenApiResponse(
+            description="Device reconnected successfully",
+            examples=[OpenApiExample(
+                name="Success",
+                value={"message": "Device reconnected", "device_id": "abc123"}
+            )]
+        ),
+        400: OpenApiResponse(
+            description="Invalid device ID",
+            examples=[OpenApiExample(
+                name="Not Found",
+                value={"error": "Device not found"}
+            )]
+        ),
+        403: OpenApiResponse(
+            description="No active LAN session or invalid access code",
+            examples=[OpenApiExample(
+                name="Forbidden",
+                value={"error": "No active session or invalid access code"}
+            )]
+        ),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+    methods=["POST"],
+    tags=["LAN Device Manager"]
+)
+@api_view(["POST"])
+def device_reconnect_view(request):
+    try:
+        data = request.data
+        if not lan.has_active_session(): 
+            return Response( {"error": "No active LAN session. Cannot register device."}, status=status.HTTP_403_FORBIDDEN)
+        
+        access_code = request.headers.get("Access-Code")
+        system_access_code = lan.get_session_data()["access_code"]
+        result, status_ = device_manager.reconnect(data, access_code, system_access_code)
+        return Response(result, status=status_)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# http://localhost:8000/api/lan/device-reconnect/ With the Access-Code HEADER which would just be the access code
+
+
+
+
+
 @extend_schema(
     summary="Disconnect Device",
     description="Disconnects a device using its ID. Optionally keep device data for future reconnection.",
@@ -312,3 +386,4 @@ def active_devices_view(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# http://localhost:8000/api/lan/devices/ With the Access-Code HEADER which would just be the access code
