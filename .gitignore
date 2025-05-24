@@ -176,3 +176,4 @@ cython_debug/
 logs/seekbeat.log*
 ffmpeg/ffmpeg.exe
 desktop_lan_connect/lan_utils/qrcodes
+desktop_lan_connect/lan_utils/songs

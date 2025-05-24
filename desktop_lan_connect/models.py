@@ -33,6 +33,10 @@ class SongProfile(models.Model):
     file_size_kb = models.IntegerField()
     file_format = models.CharField(max_length=50)
     upload_timestamp = models.DateTimeField(auto_now_add=True)
+    file_uploaded = models.BooleanField(default=False)
+    file_path = models.CharField(max_length=500, null=True, blank=True)
+
+
 
     def __str__(self):
         return f"{self.title} - {self.artist or 'Unknown'} - {self.device}"

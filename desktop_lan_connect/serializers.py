@@ -10,3 +10,7 @@ class SongProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = SongProfile
         fields = '__all__'
+
+
+class SongUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()

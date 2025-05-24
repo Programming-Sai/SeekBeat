@@ -1,11 +1,17 @@
 import logging
-from rest_framework.decorators import api_view
+from uuid import UUID
+from django.core.exceptions import ValidationError
+from rest_framework.decorators import api_view, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, OpenApiExample
+
+from .serializers import SongProfileSerializer, SongUploadSerializer
+from .lan_utils.device_manager import DeviceManager
+from .lan_utils.song_manager import SongManager
 from .lan_utils.initialization import LANCreator
 from django_ratelimit.decorators import ratelimit
-from .lan_utils.device_manager import DeviceManager
 
 
 logger = logging.getLogger('seekbeat')
@@ -324,9 +330,12 @@ def device_disconnect_view(request):
         device_id = request.data.get("device_id")
         keep_data = request.data.get("keep_data", True)
         result, code = device_manager.disconnect(device_id, keep_data)
+        SongManager.delete_uploaded_files_for_device(UUID(device_id))
         return Response(result, status=code)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        
 
 # http://localhost:8000/api/lan/device-disconnect/
 
@@ -387,3 +396,170 @@ def active_devices_view(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # http://localhost:8000/api/lan/devices/ With the Access-Code HEADER which would just be the access code
+
+
+
+
+
+@extend_schema(
+    summary="List or Delete All Songs for Device",
+    description="GET fetches all songs for a device. DELETE removes all songs for a device.",
+    responses={
+        200: OpenApiResponse(description="List of songs or deletion confirmation"),
+        400: OpenApiResponse(description="Invalid device ID or device not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+    methods=["GET", "DELETE"],
+    tags=["LAN Song Manager"]
+)
+@api_view(["GET", "DELETE"])
+def list_delete_device_songs_view(request, id: str):
+    try:
+        if request.method == "GET":
+            songs = SongManager.list_songs(str(id))
+            return Response(songs, status=status.HTTP_200_OK)
+        elif request.method == "DELETE":
+            result = SongManager.delete_all_songs(str(id))
+            return Response(result, status=status.HTTP_200_OK)
+    except ValidationError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+@extend_schema(
+    summary="Add Single Song Metadata",
+    description="Adds metadata for one song under a specific device.",
+    request={
+        "application/json": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "artist": {"type": "string"},
+                "duration_seconds": {"type": "integer"},
+                "file_size_kb": {"type": "integer"},
+                "file_format": {"type": "string"}
+            },
+            "required": ["title", "duration_seconds", "file_size_kb", "file_format"]
+        }
+    },
+    responses={
+        200: OpenApiResponse(description="Song added", examples=[
+            OpenApiExample(name="Success", value={"song_id": "...", "message": "Song added successfully."})
+        ]),
+        400: OpenApiResponse(description="Validation error"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+    methods=["POST"],
+    tags=["LAN Song Manager"]
+)
+@api_view(["POST"])
+def add_single_song_metadata(request, id):
+    try:
+        result = SongManager.add_song(str(id), request.data)
+        return Response(result, status=200)
+    except ValidationError as e:
+        return Response({"error": str(e)}, status=400)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
+
+
+
+@extend_schema(
+    summary="Update or Delete Song",
+    description="Updates metadata or deletes a specific song belonging to a device.",
+    request=SongProfileSerializer,  # Used only for PATCH
+    responses={
+        200: OpenApiResponse(description="Success", examples=[
+            OpenApiExample(name="Update Success", value={"message": "Song updated successfully."}),
+            OpenApiExample(name="Delete Success", value={"message": "Song deleted successfully."}),
+        ]),
+        400: OpenApiResponse(description="Bad request"),
+        404: OpenApiResponse(description="Not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+    methods=["PATCH", "DELETE"],
+    tags=["LAN Song Manager"],
+)
+@api_view(["PATCH", "DELETE"])
+def patch_delete_song_view(request, device_id: str, song_id: str):
+    try:
+        if request.method == "PATCH":
+            result = SongManager.update_song(str(device_id), str(song_id), request.data)
+            return Response(result, status=status.HTTP_200_OK)
+
+        elif request.method == "DELETE":
+            result = SongManager.delete_song(str(device_id), str(song_id))
+            return Response(result, status=status.HTTP_200_OK)
+
+    except ValidationError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+@extend_schema(
+    summary="Upload Song File",
+    description="Uploads a song file for a registered song belonging to a specific device.",
+    request=SongUploadSerializer,
+    responses={
+        201: OpenApiResponse(description="Song uploaded", examples=[
+            OpenApiExample(name="Success", value={"message": "Song uploaded successfully."})
+        ]),
+        400: OpenApiResponse(description="Bad request"),
+        404: OpenApiResponse(description="Song not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
+    methods=["POST"],
+    tags=["LAN Song Manager"],
+)
+@api_view(["POST"])
+@parser_classes([MultiPartParser, FormParser])
+def upload_song_file_view(request, device_id: str, song_id: str):
+    serializer = SongUploadSerializer(data=request.data)
+    if serializer.is_valid():
+        try:
+            file = serializer.validated_data["file"]
+            result = SongManager.upload_song_file(str(device_id), str(song_id), file)
+            return Response(result, status=status.HTTP_201_CREATED)
+        except ValidationError as ve:
+            return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@extend_schema(
+    summary="Bulk Add Songs",
+    description="Allows a device to register multiple songs' metadata at once.",
+    request=SongProfileSerializer(many=True),
+    responses={
+        201: OpenApiResponse(description="Songs added", examples=[
+            OpenApiExample(name="Success", value={"added": 5})
+        ]),
+        400: OpenApiResponse(description="Bad request"),
+        404: OpenApiResponse(description="Device not found"),
+    },
+    methods=["POST"],
+    tags=["LAN Song Manager"]
+)
+@api_view(["POST"])
+def bulk_add_songs_view(request, device_id: str):
+    serializer = SongProfileSerializer(data=request.data, many=True)
+    if serializer.is_valid():
+        try:
+            result = SongManager.bulk_add_songs(str(device_id), serializer.validated_data)
+            return Response(result, status=status.HTTP_201_CREATED)
+        except ValidationError as ve:
+            return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
