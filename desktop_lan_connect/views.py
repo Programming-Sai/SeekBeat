@@ -12,6 +12,7 @@ from .lan_utils.device_manager import DeviceManager
 from .lan_utils.song_manager import SongManager
 from .lan_utils.initialization import LANCreator
 from django_ratelimit.decorators import ratelimit
+from django.core.exceptions import PermissionDenied
 
 
 logger = logging.getLogger('seekbeat')
@@ -407,7 +408,12 @@ def active_devices_view(request):
     responses={
         200: OpenApiResponse(description="List of songs or deletion confirmation"),
         400: OpenApiResponse(description="Invalid device ID or device not found"),
+        404: OpenApiResponse(description="Device or Song Not found"),
         500: OpenApiResponse(description="Internal server error"),
+        403: OpenApiResponse(
+            description="Forbidden – no active session or invalid access code",
+            examples=[ OpenApiExample(name="Forbidden", value={"error": "Invalid Access-Code header."}) ]
+        ),
     },
     methods=["GET", "DELETE"],
     tags=["LAN Song Manager"]
@@ -415,14 +421,17 @@ def active_devices_view(request):
 @api_view(["GET", "DELETE"])
 def list_delete_device_songs_view(request, id: str):
     try:
+        SongManager.verify_access(request.headers.get("Access-Code"))
         if request.method == "GET":
             songs = SongManager.list_songs(str(id))
             return Response(songs, status=status.HTTP_200_OK)
         elif request.method == "DELETE":
             result = SongManager.delete_all_songs(str(id))
             return Response(result, status=status.HTTP_200_OK)
+    except PermissionDenied as e:
+        return Response({"error": str(e)}, status=403)
     except ValidationError as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -451,7 +460,12 @@ def list_delete_device_songs_view(request, id: str):
             OpenApiExample(name="Success", value={"song_id": "...", "message": "Song added successfully."})
         ]),
         400: OpenApiResponse(description="Validation error"),
+        404: OpenApiResponse(description="Device or Song Not found"),
         500: OpenApiResponse(description="Internal server error"),
+        403: OpenApiResponse(
+            description="Forbidden – no active session or invalid access code",
+            examples=[ OpenApiExample(name="Forbidden", value={"error": "Invalid Access-Code header."}) ]
+        ),
     },
     methods=["POST"],
     tags=["LAN Song Manager"]
@@ -459,10 +473,13 @@ def list_delete_device_songs_view(request, id: str):
 @api_view(["POST"])
 def add_single_song_metadata(request, id):
     try:
+        SongManager.verify_access(request.headers.get("Access-Code"))
         result = SongManager.add_song(str(id), request.data)
         return Response(result, status=200)
+    except PermissionDenied as e:
+        return Response({"error": str(e)}, status=403)
     except ValidationError as e:
-        return Response({"error": str(e)}, status=400)
+        return Response({"error": str(e)}, status=404)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
@@ -480,8 +497,12 @@ def add_single_song_metadata(request, id):
             OpenApiExample(name="Delete Success", value={"message": "Song deleted successfully."}),
         ]),
         400: OpenApiResponse(description="Bad request"),
-        404: OpenApiResponse(description="Not found"),
+        404: OpenApiResponse(description="Device or Song Not found"),
         500: OpenApiResponse(description="Internal server error"),
+        403: OpenApiResponse(
+            description="Forbidden – no active session or invalid access code",
+            examples=[ OpenApiExample(name="Forbidden", value={"error": "Invalid Access-Code header."}) ]
+        ),
     },
     methods=["PATCH", "DELETE"],
     tags=["LAN Song Manager"],
@@ -489,6 +510,7 @@ def add_single_song_metadata(request, id):
 @api_view(["PATCH", "DELETE"])
 def patch_delete_song_view(request, device_id: str, song_id: str):
     try:
+        SongManager.verify_access(request.headers.get("Access-Code"))
         if request.method == "PATCH":
             result = SongManager.update_song(str(device_id), str(song_id), request.data)
             return Response(result, status=status.HTTP_200_OK)
@@ -497,8 +519,10 @@ def patch_delete_song_view(request, device_id: str, song_id: str):
             result = SongManager.delete_song(str(device_id), str(song_id))
             return Response(result, status=status.HTTP_200_OK)
 
+    except PermissionDenied as e:
+        return Response({"error": str(e)}, status=403)
     except ValidationError as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -515,6 +539,10 @@ def patch_delete_song_view(request, device_id: str, song_id: str):
         ]),
         400: OpenApiResponse(description="Bad request"),
         404: OpenApiResponse(description="Song not found"),
+        403: OpenApiResponse(
+            description="Forbidden – no active session or invalid access code",
+            examples=[ OpenApiExample(name="Forbidden", value={"error": "Invalid Access-Code header."}) ]
+        ),
         500: OpenApiResponse(description="Internal server error"),
     },
     methods=["POST"],
@@ -526,11 +554,14 @@ def upload_song_file_view(request, device_id: str, song_id: str):
     serializer = SongUploadSerializer(data=request.data)
     if serializer.is_valid():
         try:
+            SongManager.verify_access(request.headers.get("Access-Code"))
             file = serializer.validated_data["file"]
             result = SongManager.upload_song_file(str(device_id), str(song_id), file)
             return Response(result, status=status.HTTP_201_CREATED)
+        except PermissionDenied as e:
+            return Response({"error": str(e)}, status=403)
         except ValidationError as ve:
-            return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": str(ve)}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -547,6 +578,10 @@ def upload_song_file_view(request, device_id: str, song_id: str):
         ]),
         400: OpenApiResponse(description="Bad request"),
         404: OpenApiResponse(description="Device not found"),
+        403: OpenApiResponse(
+            description="Forbidden – no active session or invalid access code",
+            examples=[ OpenApiExample(name="Forbidden", value={"error": "Invalid Access-Code header."}) ]
+        ),
     },
     methods=["POST"],
     tags=["LAN Song Manager"]
@@ -556,8 +591,11 @@ def bulk_add_songs_view(request, device_id: str):
     serializer = SongProfileSerializer(data=request.data, many=True)
     if serializer.is_valid():
         try:
+            SongManager.verify_access(request.headers.get("Access-Code"))
             result = SongManager.bulk_add_songs(str(device_id), serializer.validated_data)
             return Response(result, status=status.HTTP_201_CREATED)
+        except PermissionDenied as e:
+            return Response({"error": str(e)}, status=403)
         except ValidationError as ve:
             return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:

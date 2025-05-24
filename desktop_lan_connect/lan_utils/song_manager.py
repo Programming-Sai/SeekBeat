@@ -2,8 +2,8 @@ import os
 import shutil
 from uuid import UUID
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from django.conf import settings
-from django.utils import timezone
+from .initialization import LANCreator
+from django.core.exceptions import PermissionDenied
 from ..models import DeviceProfile, SongProfile
 
 SONG_STORAGE_PATH = r"c:\Users\pc\Desktop\Projects\SeekBeat\desktop_lan_connect\lan_utils\songs"
@@ -14,6 +14,23 @@ class SongManager:
     Main logic for CRUD operations on SongProfile models and
     their associated MP3 files on disk.
     """
+
+    @staticmethod
+    def verify_access(access_code: str) -> None:
+        """
+        Ensure there’s an active LAN session and the provided Access-Code
+        matches the one stored on disk.
+        
+        Raises:
+            PermissionDenied: if no active session or code mismatch.
+        """
+        lan = LANCreator()
+        if not lan.has_active_session():
+            raise PermissionDenied("No active LAN session.")
+        
+        stored = lan.get_session_data().get("access_code")
+        if access_code != stored:
+            raise PermissionDenied("Invalid Access-Code header.")
 
     @staticmethod
     def get_device(device_id: str) -> DeviceProfile:
@@ -162,7 +179,7 @@ class SongManager:
 
         # Ensure it's an MP3 file
         if not file_obj.name.lower().endswith(".mp3"):
-            raise ValidationError("Only MP3 files are supported.")
+            raise TypeError("Only MP3 files are supported.")
 
         folder = os.path.join(SONG_STORAGE_PATH, f"device_{device_id}")
         os.makedirs(folder, exist_ok=True)

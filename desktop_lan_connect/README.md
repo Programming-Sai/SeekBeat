@@ -1,188 +1,186 @@
-## SeekBeat LAN API
+# SeekBeat LAN Module
 
-A simple, self-hosted local-network (LAN) API for device registration, song metadata management, and file uploads. Perfect for integrating into desktop or mobile front-ends that stream or share music over your local network without an external server.
-
----
-
-### 🔑 Authentication
-
-All device- and song-related endpoints require a valid `Access-Code` header, obtained when you start a LAN session.
-
-```http
-Access-Code: 123e4567-e89b-12d3-a456-426614174000
-```
+A self-hosted local-network (LAN) API for seamless device registration, song metadata CRUD, and MP3 file sharing over your home or office network—no cloud required. Integrate this with any desktop or mobile frontend to build a real-time, peer-to-peer music sharing and streaming experience.
 
 ---
 
-## 📡 Session Management
+## 🚀 Features
 
-| Method | Endpoint          | Description                                               |
-| ------ | ----------------- | --------------------------------------------------------- |
-| GET    | `/session-start/` | Start a new session. Returns `{"qr_path": "<png_path>"}`. |
-| GET    | `/session-check/` | Check if a session is active. Returns `{"active": true}`. |
-| POST   | `/session-end/`   | Terminate session. Requires `Access-Code`.                |
-
----
-
-## 🖥️ Device Management
-
-### 1. Register or Update a Device
-
-```http
-POST /device-connect/
-Headers: Access-Code
-Content-Type: application/json
-
-{
-  "device_name": "My Laptop",
-  "os_version": "Windows 11",
-  "ram_mb": 8192,
-  "storage_mb": 512000,
-  "device_id": "<optional-UUID>"
-}
-```
-
-**Response**
-
-```json
-{ "device_id": "<UUID>", "message": "My Laptop registered" }
-```
-
-### 2. Reconnect a Device
-
-```http
-POST /device-reconnect/
-Headers: Access-Code
-Content-Type: application/json
-
-{ "device_id": "<UUID>" }
-```
-
-**Response**
-
-```json
-{ "device_id": "<UUID>", "message": "My Laptop reconnected" }
-```
-
-### 3. Disconnect a Device
-
-```http
-POST /device-disconnect/
-Content-Type: application/json
-
-{
-  "device_id": "<UUID>",
-  "keep_data": true     // or false to delete device record
-}
-```
-
-**Response**
-
-```json
-{ "message": "My Laptop disconnected", "device_id": "<UUID>" }
-```
-
-### 4. List Active Devices
-
-```http
-GET /devices/
-Headers: Access-Code
-```
-
-**Response**
-
-```json
-{
-  "count": 2,
-  "devices": [
-    {
-      "device_id": "<UUID>",
-      "device_name": "My Laptop",
-      "os_version": "Windows 11",
-      "ram_mb": 8192,
-      "storage_mb": 512000,
-      "last_seen": "2025-05-24T10:00:00Z"
-    },
-    …
-  ]
-}
-```
+- **Session Management**: Spin up a LAN “session” protected by a UUID-based access code, shared via QR.
+- **Device Lifecycle**: Register, reconnect, list, and disconnect devices securely.
+- **Song Metadata**: Create, read, update, delete song records in bulk or individually.
+- **File Upload**: Push MP3 files from a device; files are auto-stored and cleaned up on disconnect.
+- **Extensible**: Ready for streaming/download, search, playlists, and more.
 
 ---
 
-## 🎵 Song Metadata & File Management
+## 📋 Table of Contents
 
-_All song endpoints use the device’s UUID in the URL path._
+1. [Prerequisites](#-prerequisites)
+2. [Installation & Quickstart](#️-installation--quickstart)
+3. [Authentication](#-authentication)
+4. [Endpoints Reference](#-endpoints-reference)
 
-### 1. List or Delete All Songs
+   - Session
+   - Device
+   - Songs
+
+5. [Error Codes & Responses](#️-error-codes--responses)
+
+---
+
+## 🔧 Prerequisites
+
+- Python 3.9+
+- Django 4.x
+- Django REST Framework
+- drf-spectacular
+- Pillow, qrcode, jsonschema, django-ratelimit
+- (Optional) Postman or curl for testing
+
+---
+
+## ⚙️ Installation & Quickstart
+
+```bash
+git clone https://github.com/Programming-Sai/SeekBeat.git
+cd seekbeat
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+Now your API is live at `http://localhost:8000/api/lan/`.
+
+---
+
+## 🔑 Authentication
+
+1. **Start a session** → GET `/api/lan/session-start/`
+2. Scan or read the returned `qr_path` and copy the `access_code` from its payload.
+3. **All endpoints below** require:
 
 ```http
-GET  /device/<device_uuid>/songs
+Access-Code: <YOUR-SESSION-UUID>
+```
+
+Absent or invalid → **403 Forbidden**.
+
+---
+
+## 📐 Endpoints Reference
+
+### 1. Session Management
+
+| Method | Path              | Description                                | Success                                 | Errors                |
+| ------ | ----------------- | ------------------------------------------ | --------------------------------------- | --------------------- |
+| GET    | `/session-start/` | Create a LAN session; returns QR and code. | 200 `{qr_path, access_code}`            | 400 (already exists)  |
+| GET    | `/session-check/` | Is a session active?                       | 200 `{"active": true/false}`            | —                     |
+| POST   | `/session-end/`   | Terminate the session                      | 200 `{"message":"Session terminated."}` | 400 (no session), 403 |
+
+---
+
+### 2. Device Management
+
+> [!NOTE]
+> All require `Access-Code` header.
+
+| Method | Path                  | Description                              | Success                    | Errors                   |
+| ------ | --------------------- | ---------------------------------------- | -------------------------- | ------------------------ |
+| POST   | `/device-connect/`    | Register or update a device              | 200 `{device_id, message}` | 400 (name conflict), 403 |
+| POST   | `/device-reconnect/`  | Reactivate a disconnected device         | 200 `{device_id, message}` | 400 (not found), 403     |
+| POST   | `/device-disconnect/` | Disconnect device; keep or delete record | 200 `{message, device_id}` | 404 (not found), 403     |
+| GET    | `/devices/`           | List all currently active devices        | 200 `{count, devices:[…]}` | 403                      |
+
+---
+
+### 3. Song Metadata & Files
+
+## 🎵 Song Metadata & File Endpoints
+
+> [!NOTE] > **All song paths include** `<device_uuid>` in the URL and **require** `Access-Code`.
+
+|     Method | Path                                             | Description                                                  |
+| ---------: | ------------------------------------------------ | ------------------------------------------------------------ |
+|    **GET** | `/device/<device_uuid>/songs`                    | List all songs for this device.                              |
+| **DELETE** | `/device/<device_uuid>/songs`                    | Delete _all_ songs (metadata + files) for this device.       |
+|   **POST** | `/device/<device_uuid>/songs/bulk_add`           | Bulk-create many songs. Body: Array of song-objects.         |
+|   **POST** | `/device/<device_uuid>/songs/add`                | Create a single song. Body: single song-object.              |
+|  **PATCH** | `/device/<device_uuid>/songs/<song_uuid>`        | Update a song’s metadata. Body: partial song-object.         |
+| **DELETE** | `/device/<device_uuid>/songs/<song_uuid>`        | Delete one song (metadata + file).                           |
+|   **POST** | `/device/<device_uuid>/songs/<song_uuid>/upload` | Upload the MP3 file for that song. Form-data: `file` (.mp3). |
+
+#### a. List or Delete All Songs
+
+```
+GET    /device/<device_uuid>/songs
 DELETE /device/<device_uuid>/songs
 ```
 
-- **GET** returns an array of song objects
-- **DELETE** removes all songs and their files
+- **GET** → `200 [{song_profile}, …]`
+- **DELETE** → `200 {"message":…}`
 
-### 2. Bulk Add Songs
+#### b. Bulk Add Songs
 
-```http
+```
 POST /device/<device_uuid>/songs/bulk_add
 Content-Type: application/json
-
-[
-  {
-    "title": "Blinding Lights",
-    "artist": "The Weeknd",
-    "duration_seconds": 200,
-    "file_size_kb": 4300,
-    "file_format": "mp3"
-  },
-  …
-]
+Body: [ {title, artist, duration_seconds, file_size_kb, file_format}, … ]
 ```
 
-**Response**
+- **201** `{"added": <n>}`
 
-```json
-{ "added": 5 }
+#### c. Add Single Song
+
 ```
-
-### 3. Add a Single Song
-
-```http
 POST /device/<device_uuid>/songs/add
 Content-Type: application/json
-
-{
-  "title": "Sunflower",
-  "artist": "Post Malone",
-  "duration_seconds": 158,
-  "file_size_kb": 3900,
-  "file_format": "mp3"
-}
+Body: {title, artist, duration_seconds, file_size_kb, file_format}
 ```
 
-### 4. Update or Delete One Song
+- **200** `{"song_id": "<uuid>", "message":…}`
 
-```http
+#### d. Update or Delete One Song
+
+```
 PATCH  /device/<device_uuid>/songs/<song_uuid>
+Body: { any subset of metadata fields }
+→ 200 {"message":…}
+
 DELETE /device/<device_uuid>/songs/<song_uuid>
+→ 200 {"message":…}
 ```
 
-- **PATCH** accepts a partial metadata object
-- **DELETE** removes that song record and its file
+#### e. Upload Song File
 
-### 5. Upload a Song File
-
-```http
+```
 POST /device/<device_uuid>/songs/<song_uuid>/upload
 Content-Type: multipart/form-data
-Body: file=(your .mp3 file)
+Body: file=(.mp3 only)
 ```
 
-**Response**
+- **201** `{"message":…,"path":…}`
 
-```json
-{ "message": "Song file uploaded successfully.", "path": "/…/song_<uuid>.mp3" }
-```
+---
+
+## ⚠️ Error Codes & Responses
+
+|      Status | Meaning                          | Example Body                      |
+| ----------: | -------------------------------- | --------------------------------- |
+| **200/201** | Success                          | `{"…":…}`                         |
+|     **400** | Bad request / validation failure | `{"error":"<details>"}`           |
+|     **403** | Forbidden – invalid/missing code | `{"error":"Invalid Access-Code"}` |
+|     **404** | Not found – device/song missing  | `{"error":"Device not found"}`    |
+|     **500** | Internal server error            | `{"error":"<exception message>"}` |
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create a feature branch
+3. Submit a pull request with tests & docs
+4. Enjoy the jam session! 🎶
+
+---
