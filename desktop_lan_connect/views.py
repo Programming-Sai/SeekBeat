@@ -419,11 +419,11 @@ def active_devices_view(request):
     tags=["LAN Song Manager"]
 )
 @api_view(["GET", "DELETE"])
-def list_delete_device_songs_view(request, id: str):
+def list_delete_device_songs_view(request, device_id: str):
     try:
         SongManager.verify_access(request.headers.get("Access-Code"))
         if request.method == "GET":
-            songs = SongManager.list_songs(str(id))
+            songs = SongManager.list_songs(str(device_id))
             return Response(songs, status=status.HTTP_200_OK)
         elif request.method == "DELETE":
             result = SongManager.delete_all_songs(str(id))
@@ -471,10 +471,10 @@ def list_delete_device_songs_view(request, id: str):
     tags=["LAN Song Manager"]
 )
 @api_view(["POST"])
-def add_single_song_metadata(request, id):
+def add_single_song_metadata(request, device_id):
     try:
         SongManager.verify_access(request.headers.get("Access-Code"))
-        result = SongManager.add_song(str(id), request.data)
+        result = SongManager.add_song(str(device_id), request.data)
         return Response(result, status=200)
     except PermissionDenied as e:
         return Response({"error": str(e)}, status=403)
