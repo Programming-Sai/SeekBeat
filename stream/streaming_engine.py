@@ -5,6 +5,7 @@ Provides a Django-friendly audio streaming engine using yt-dlp and FFmpeg.
 Supports on-the-fly audio trimming, speed/volume adjustments, and ID3 metadata embedding (via Mutagen).
 """
 
+import re
 import threading
 import yt_dlp
 import subprocess
@@ -18,6 +19,9 @@ import logging
 import urllib.parse
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3, APIC, WXXX, error
+
+from desktop_lan_connect.models import SongProfile
+from django.http import StreamingHttpResponse, HttpResponse, FileResponse
 
 
 
@@ -61,7 +65,25 @@ class StreamingEngine:
         self.ffmpeg_path = custom_path
 
 
-        # print("Using FFmpeg at:", self.ffmpeg_path)
+    
+    def is_youtube_id(self, identifier: str) -> bool:
+        return bool(re.match(r'^[A-Za-z0-9_-]{11}$', identifier))
+
+
+    
+    def get_song_by_id(self, song_id: str):
+        """
+        Returns local song info: input_src, duration, title
+        Raises DoesNotExist if not found.
+        """
+        song = SongProfile.objects.get(song_id=uuid.UUID(song_id))
+        input_src = song.file_path 
+        duration = song.duration_seconds 
+        title = song.title 
+        return input_src, duration, title
+
+
+
 
     def extract_stream_url(self, video_url: str) -> dict:
         """
@@ -167,7 +189,6 @@ class StreamingEngine:
 
             # Pipe output to response
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print(process.stderr, "House of Cards")
             # return process.stdout
             # self.pipe_stream(process.stdout)
             yield from self.pipe_stream(process.stdout)
@@ -287,3 +308,46 @@ class StreamingEngine:
             if not chunk:
                 break
             yield chunk
+        
+
+
+    def range_file_response(self, request, file_path, content_type='audio/mpeg', chunk_size=8192):
+        file_size = os.path.getsize(file_path)
+        range_header = request.headers.get('Range', '')
+        start, end = 0, file_size - 1
+
+        if range_header and 'bytes=' in range_header:
+            range_value = range_header.strip().split('=')[1]
+            start_end = range_value.split('-')
+            if start_end[0]:
+                start = int(start_end[0])
+            if len(start_end) > 1 and start_end[1]:
+                end = int(start_end[1])
+
+            if end >= file_size:
+                end = file_size - 1
+
+        length = end - start + 1
+
+        def file_iterator(path, offset, length, chunk_size=chunk_size):
+            with open(path, 'rb') as f:
+                f.seek(offset)
+                remaining = length
+                while remaining > 0:
+                    read_size = min(chunk_size, remaining)
+                    data = f.read(read_size)
+                    if not data:
+                        break
+                    yield data
+                    remaining -= len(data)
+
+        response = StreamingHttpResponse(
+            file_iterator(file_path, start, length),
+            status=206 if range_header else 200,
+            content_type=content_type,
+        )
+        response['Content-Length'] = str(length)
+        response['Accept-Ranges'] = 'bytes'
+        response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
+        response['Content-Disposition'] = 'inline; filename="stream.mp3"'
+        return response

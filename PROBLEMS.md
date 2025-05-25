@@ -1,5 +1,7 @@
 # Problem Tracker<br><br>
 ## 📋 Table of Contents<br>
+- [Updated yt-dlp to resolve nsig extraction and manifest URL issue](#🆔-015---updated-yt-dlp-to-resolve-nsig-extraction-and-manifest-url-issue)
+
 - [Return after metadata branch to prevent double‐streaming](#🆔-014---return-after-metadata-branch-to-prevent-doublestreaming)
 
 - [JSON.stringify needed with Django FormData](#🆔-013---jsonstringify-needed-with-django-formdata)
@@ -29,6 +31,32 @@
 - [Unable to Stop Server Using Ctrl+C in IDE Terminal](#🆔-001---unable-to-stop-server-using-ctrlc-in-ide-terminal)
 
 ---
+
+---
+### 🆔 015 - Updated yt-dlp to resolve nsig extraction and manifest URL issue
+<br>**Status:** ✅ Solved
+
+**Language:** Shell
+
+**Time Taken:** 15m
+
+### 🐞 Problem Description<br>
+yt-dlp was returning HLS manifest URLs due to a failed nsig extraction, triggered by changes in YouTube's base.js. This broke direct audio streaming URLs.
+
+```shell
+yt-dlp -f bestaudio --get-url https://youtube.com/watch?v=KeM-dILIkEk\n# returned manifest.googlevideo.com URL instead of direct stream
+```
+				
+### ✅ Solution Description
+<br>
+Upgraded yt-dlp via pip to latest version (2025.05.22), which included updated nsig extractor for current YouTube player scripts.
+
+```shell
+pip install -U yt-dlp\n# then tested again: yt-dlp -f bestaudio --get-url …\n# got proper long direct audio URL
+```
+				
+<br>
+<br>
 
 ---
 ### 🆔 014 - Return after metadata branch to prevent double‐streaming

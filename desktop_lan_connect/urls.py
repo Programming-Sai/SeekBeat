@@ -11,6 +11,8 @@ urlpatterns = [
     path("device-disconnect/", views.device_disconnect_view, name="device disconnection"),
     path("devices/", views.active_devices_view, name="gets all active devices"),
 
+    path("songs", views.all_songs_from_active_devices_view, name="gets all songs from all active devices"),
+
     path("device/<uuid:device_id>/songs", views.list_delete_device_songs_view, name="gets or deletes all songs for a given devices"),
     path("device/<uuid:device_id>/songs/bulk_add", views.bulk_add_songs_view, name="adds all songs for a given devices"),
     path("device/<uuid:device_id>/songs/<uuid:song_id>/upload", views.upload_song_file_view, name="uploads a song file from a given devices"), 

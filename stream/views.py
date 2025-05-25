@@ -10,6 +10,8 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExampl
 from django_ratelimit.decorators import ratelimit
 from drf_spectacular.types import OpenApiTypes
 from django.shortcuts import redirect, render
+
+from desktop_lan_connect.lan_utils.song_manager import SongManager
 from .streaming_engine import StreamingEngine
 
 logger = logging.getLogger('seekbeat')
@@ -30,12 +32,13 @@ engine = StreamingEngine()
     summary="Stream YouTube Audio",
     description=(
         "GET returns stream metadata; POST streams edited audio. "
+        "If the path includes a local song ID, the actual file will be streamed directly."
         "Provide `edits` JSON with speed, trim, volume, metadata fields."
     ),
     parameters=[
         OpenApiParameter(
             name='video_url',
-            description='YouTube ID',
+            description='YouTube ID or Song ID',
             required=True,
             type=str,
             location=OpenApiParameter.PATH
@@ -94,6 +97,7 @@ engine = StreamingEngine()
 )
 @api_view(["GET", "POST"])
 @ratelimit(key='ip', rate='30/m', block=True)
+
 def stream_url_view(request, video_url):
     if not video_url:
         logger.warning("Missing video URL in path")
@@ -104,14 +108,19 @@ def stream_url_view(request, video_url):
         logger.info("Stream request from %s for video_url=%s", request.META.get("REMOTE_ADDR"), video_url)
 
         try:
-            full_url = f"https://www.youtube.com/watch?v={video_url}"
-            data = engine.extract_stream_url(full_url)
-            # data = engine.extract_stream_url(video_url)
-            logger.info("Stream URL extracted successfully for %s", video_url)
-            return Response(data)
+            if engine.is_youtube_id(video_url):
+                full_url = f"https://www.youtube.com/watch?v={video_url}"
+                data = engine.extract_stream_url(full_url)
+                logger.info("Stream URL extracted successfully for %s", video_url)
+                return Response(data, status=status.HTTP_200_OK)
+            else:
+                SongManager.verify_access(request.headers.get("Access-Code"))
+                input_src, _, _ = engine.get_song_by_id(video_url)
+                return engine.range_file_response(request, input_src)
+
         except Exception as e:
-            logger.exception("Stream extraction failed for %s", video_url)
-            return Response({"error": "Failed to extract stream URL."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.exception(f"Stream extraction failed for %s: {str(e)}", video_url)
+            return Response({"error": f"Internal Server Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     elif request.method == "POST":
         raw_edits = request.data.get("edits", "{}")
@@ -122,12 +131,22 @@ def stream_url_view(request, video_url):
             edits = raw_edits  # already a dict (like when using Postman or API clients)
 
         try:
-            full_url = f"https://www.youtube.com/watch?v={video_url}"
-            info = engine.extract_stream_url(video_url)
-            input_src = info["stream_url"]
-            duration = info["duration"]
-            title = info["title"]
+
+
+            if engine.is_youtube_id(video_url):
+                # It's a YouTube video
+                full_url = f"https://www.youtube.com/watch?v={video_url}"
+                info = engine.extract_stream_url(video_url)
+                input_src = info["stream_url"]
+                duration = info["duration"]
+                title = info["title"]
+            else:
+                # It's a song ID
+                SongManager.verify_access(request.headers.get("Access-Code"))
+                input_src, duration, title = engine.get_song_by_id(video_url)
+            
             stream = engine.stream_with_edits(input_src, edits, duration)
+
             response = StreamingHttpResponse(stream, content_type="audio/mpeg")
             response["Content-Disposition"] = f'attachment; filename="{title}.mp3"'
             return response
@@ -151,6 +170,5 @@ def stream_test_view(request):
 
 
 # http://localhost:8000/api/stream/test/?id=dQw4w9WgXcQ
-
 
 

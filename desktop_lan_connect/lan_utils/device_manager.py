@@ -6,7 +6,7 @@ class DeviceManager:
     Manages registration, reconnection, disconnection, and listing of devices
     within an active LAN session.
     """
-    def handshake(self, device_data: dict, access_code: str, system_access_code: str) -> tuple[dict, int]:
+    def handshake(self, device_data: dict, access_code: str, system_access_code: str, ip_address: str) -> tuple[dict, int]:
         """
         Register a new device or update an existing one in the active LAN session.
 
@@ -55,6 +55,7 @@ class DeviceManager:
                 device.storage_mb = storage_mb
                 device.last_seen = timezone.now()
                 device.is_active = True
+                device.ip_address = ip_address
                 device.save()
                 created = False
             else:
@@ -63,6 +64,7 @@ class DeviceManager:
                     device_name=device_name,
                     os_version=os_version,
                     ram_mb=ram_mb,
+                    ip_address =ip_address,
                     storage_mb=storage_mb
                 )
                 created = True

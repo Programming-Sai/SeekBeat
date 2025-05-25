@@ -5,9 +5,11 @@ import requests
 import os
 import re
 import unicodedata
-
+from django.db.models import Q
 
 import logging
+
+from desktop_lan_connect.models import DeviceProfile, SongProfile
 logger = logging.getLogger('seekbeat')
 
 
@@ -221,29 +223,45 @@ class SearchEngine:
         return await asyncio.gather(*tasks)
     
 
-    def lan_search(self, search_term: str, scope: str = "all") -> list[dict]:
+
+
+    def lan_search(self, search_term: str) -> list[dict]:
         """
-        Placeholder for LAN-based search.
+        Searches all registered songs in the LAN.
 
         Args:
-            search_term (str): The term to look up in the LAN song database.
-            scope (str):   Optional scope filter—e.g. "all" | "local" | "remote".
-                           (“all” returns every matching device; “local” only this server;
-                           “remote” only other nodes.)
+            search_term (str): Term to look up in title or artist.
 
         Returns:
-            List[dict]: A list of result objects, each with:
-                - 'title':        The song’s title
-                - 'artist':       The song’s artist/album info
-                - 'device_ip':    IP address of the device holding the song
-                - 'file_path':    Path or URL to stream/download from the LAN
-                - 'duration':     Song length in seconds
-                - 'thumbnail':    Optional artwork URL or local path
+            List[dict]: Song metadata results from active devices.
         """
-        # TODO: Query the server’s LAN-song-index database for `search_term`
-        # TODO: Filter by `scope`, if necessary (e.g., exclude self)
-        # TODO: Return a list of metadata dicts including device_ip & file_path
-        raise NotImplementedError("LAN search is not yet implemented")
+        try:
+            # Get all active devices
+            active_device_ids = DeviceProfile.objects.filter(is_active=True).values_list("id", flat=True)
+
+            # Query for matching songs from active devices
+            matches = SongProfile.objects.filter(
+                Q(device_id__in=active_device_ids),
+                Q(title__icontains=search_term) | Q(artist__icontains=search_term)
+            ).select_related("device")
+
+            # Build the result list
+            results = []
+            for song in matches:
+                device = song.device
+                if device and device.ip_address:  # Ensure IP exists
+                    results.append({
+                        "title": song.title,
+                        "artist": song.artist or "Unknown",
+                        "device_ip": device.ip_address,
+                        "device_id": str(device.device_id),
+                        "song_id": str(song.song_id),
+                        "duration": song.duration_seconds
+                    })
+            return results
+        except Exception as e:
+            print(str(Exception))
+
 
 
      

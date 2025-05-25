@@ -14,6 +14,22 @@ class SongManager:
     Main logic for CRUD operations on SongProfile models and
     their associated MP3 files on disk.
     """
+    @staticmethod
+    def get_all_songs_from_active_devices() -> list[dict]:
+        active_devices = DeviceProfile.objects.filter(is_active=True)
+        songs = SongProfile.objects.filter(device__in=active_devices)
+
+        return [
+            {
+                "title": song.title,
+                "artist": song.artist or "Unknown",
+                "duration": song.duration_seconds,
+                "device_id": str(song.device.device_id) if song.device else None,
+                "device_ip": song.device.ip_address if song.device else None,
+                "song_id": str(song.song_id),
+            }
+            for song in songs
+        ]
 
     @staticmethod
     def verify_access(access_code: str) -> None:

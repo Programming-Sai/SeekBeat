@@ -152,5 +152,16 @@
         "solution-desc": "Added return immediately after the metadata file loop so the generator stops before hitting the FFmpeg pipe.",
         "solution-snippet": "    with open(input_src, 'rb') as f:\\n        for chunk in iter(lambda: f.read(8192), b''):\\n            yield chunk\\n    return",
         "time-taken": "10m"
+    },
+    {
+        "id": "015",
+        "title": "Updated yt-dlp to resolve nsig extraction and manifest URL issue",
+        "tag": "solved",
+        "language": "shell",
+        "desc": "yt-dlp was returning HLS manifest URLs due to a failed nsig extraction, triggered by changes in YouTube's base.js. This broke direct audio streaming URLs.",
+        "snippet": "yt-dlp -f bestaudio --get-url https://youtube.com/watch?v=KeM-dILIkEk\\n# returned manifest.googlevideo.com URL instead of direct stream",
+        "solution-desc": "Upgraded yt-dlp via pip to latest version (2025.05.22), which included updated nsig extractor for current YouTube player scripts.",
+        "solution-snippet": "pip install -U yt-dlp\\n# then tested again: yt-dlp -f bestaudio --get-url \u2026\\n# got proper long direct audio URL",
+        "time-taken": "15m"
     }
 ]

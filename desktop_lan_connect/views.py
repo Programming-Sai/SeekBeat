@@ -1,6 +1,6 @@
 import logging
 from uuid import UUID
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, PermissionDenied
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -12,7 +12,6 @@ from .lan_utils.device_manager import DeviceManager
 from .lan_utils.song_manager import SongManager
 from .lan_utils.initialization import LANCreator
 from django_ratelimit.decorators import ratelimit
-from django.core.exceptions import PermissionDenied
 
 
 logger = logging.getLogger('seekbeat')
@@ -121,6 +120,7 @@ def check_lan_session_status(request):
             OpenApiExample(name="None", value={"error": "No active session found."})
         ]),
         500: OpenApiResponse(description="Internal server error")
+        
     },
     methods=["POST"],
     tags=["LAN Session Manager"]
@@ -138,7 +138,7 @@ def terminate_lan_session(request):
         qr_path = session_data.get("qr_path")
         res = lan.terminate_session(qr_path, access_code)
 
-        return Response(res)
+        return Response(res, status=200)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -213,12 +213,13 @@ Registers a new device to the active LAN session or updates an existing one.
 def device_handshake_view(request):
     try:
         data = request.data
+        ip_address = request.META.get('REMOTE_ADDR')
         if not lan.has_active_session(): 
             return Response( {"error": "No active LAN session. Cannot register device."}, status=status.HTTP_403_FORBIDDEN)
         
         access_code = request.headers.get("Access-Code")
         system_access_code = lan.get_session_data()["access_code"]
-        result, status_ = device_manager.handshake(data, access_code, system_access_code)
+        result, status_ = device_manager.handshake(data, access_code, system_access_code, ip_address)
         return Response(result, status=status_)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -403,6 +404,7 @@ def active_devices_view(request):
 
 
 @extend_schema(
+    operation_id="list or delete_all_device_songs",
     summary="List or Delete All Songs for Device",
     description="GET fetches all songs for a device. DELETE removes all songs for a device.",
     responses={
@@ -601,3 +603,38 @@ def bulk_add_songs_view(request, device_id: str):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+@extend_schema(
+    summary="Get All Songs from Active Devices",
+    description="Returns a list of all songs registered by devices currently active in the LAN session. Requires 'Access-Code' in headers.",
+    parameters=[
+        OpenApiParameter(
+            name="Access-Code",
+            type=str,
+            location=OpenApiParameter.HEADER,
+            required=True,
+            description="Access code to authenticate this request"
+        )
+    ],
+    responses={
+        200: OpenApiResponse(description="List of songs"),
+        403: OpenApiResponse(description="Invalid or missing access code"),
+        500: OpenApiResponse(description="Internal server error")
+    },
+    tags=["LAN Song Manager"]
+)
+@api_view(["GET"])
+@ratelimit(key="ip", rate="10/m", block=True)
+def all_songs_from_active_devices_view(request):
+    try:
+        SongManager.verify_access(request.headers.get("Access-Code"))
+        results = SongManager().get_all_songs_from_active_devices()
+        return Response(results, status=200)
+    except PermissionError as e:
+        return Response({"error": str(e)}, status=403)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

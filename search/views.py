@@ -1,4 +1,7 @@
 from django.http import JsonResponse
+
+from desktop_lan_connect.lan_utils.initialization import LANCreator
+from desktop_lan_connect.lan_utils.song_manager import SongManager
 from .search_engine import SearchEngine
 from django_ratelimit.decorators import ratelimit
 from asgiref.sync import async_to_sync
@@ -8,6 +11,8 @@ from drf_spectacular.types import OpenApiTypes
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from drf_spectacular.utils import OpenApiExample
+from django.core.exceptions import ValidationError, PermissionDenied
+from rest_framework import status
 
 logger = logging.getLogger('seekbeat')
 # logger.setLevel(logging.DEBUG)
@@ -25,6 +30,7 @@ logger = logging.getLogger('seekbeat')
 
 
 engine = SearchEngine()
+lan = LANCreator()
 
 
 
@@ -91,7 +97,7 @@ def search_view(request):
 
     except Exception as e:
         logger.exception("Search failed for query=%s", classified['query'])  # 🔹 LOG HERE
-        return Response({"error": "Internal error"}, status=500)
+        return Response({"error": f"Internal error: {str(e)}"}, status=500)
 
     return Response(result)
 
@@ -161,6 +167,50 @@ def bulk_search_view(request):
         logger.info("Bulk search completed with %d terms", len(terms))  # 🔹 LOG HERE
     except Exception as e:
         logger.exception("Bulk search failed")  # 🔹 LOG HERE
-        return Response({"error": "Internal error"}, status=500)
+        return Response({"error": f"Internal error: {str(e)}"}, status=500)
 
     return Response(results)
+
+
+
+
+
+
+@extend_schema(
+    tags=["Search"],
+    parameters=[
+        OpenApiParameter(name="q", type=str, required=True, location=OpenApiParameter.QUERY, description="Search keyword for title or artist."),
+    ],
+    responses={
+        200: OpenApiResponse(description="List of matching songs across LAN devices."),
+        400: OpenApiResponse(description="Missing search query."),
+        401: OpenApiResponse(description="Invalid access code."),
+        403: OpenApiResponse(description="No active session."),
+        500: OpenApiResponse(description="Unexpected server error."),
+    }
+)
+@api_view(["GET"])
+def lan_song_search_view(request):
+    try:
+        search_term = request.query_params.get("query", "").strip()
+        access_code = request.headers.get("Access-Code")
+
+        if not lan.has_active_session():
+            return Response({"error": "No active session."}, status=status.HTTP_403_FORBIDDEN)
+
+        SongManager.verify_access(access_code)
+
+        if not search_term:
+            return Response({"error": "No search term provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        engine = SearchEngine()
+        results = engine.lan_search(search_term)
+        return Response(results, status=status.HTTP_200_OK)
+
+    
+    except PermissionDenied as e:
+        return Response({"error": str(e)}, status=403)
+    except ValidationError as e:
+        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": f"Something went wrong during LAN search: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

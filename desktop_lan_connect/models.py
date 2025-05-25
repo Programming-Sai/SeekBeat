@@ -14,6 +14,7 @@ class DeviceProfile(models.Model):
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     last_seen = models.DateTimeField(auto_now=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
     keep_data_on_leave = models.BooleanField(default=False)
 
     def __str__(self):
@@ -34,7 +35,7 @@ class SongProfile(models.Model):
     file_format = models.CharField(max_length=50)
     upload_timestamp = models.DateTimeField(auto_now_add=True)
     file_uploaded = models.BooleanField(default=False)
-    file_path = models.CharField(max_length=500, null=True, blank=True)
+    file_path = models.CharField(max_length=500, null=True, blank=True) 
 
 
 
