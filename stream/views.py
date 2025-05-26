@@ -116,7 +116,8 @@ def stream_url_view(request, video_url):
             else:
                 SongManager.verify_access(request.headers.get("Access-Code"))
                 input_src, _, _ = engine.get_song_by_id(video_url)
-                return engine.range_file_response(request, input_src)
+                logger.info("Found song locally for %s at %s", video_url, input_src)
+                return engine.range_file_response(request, input_src, video_url)
 
         except Exception as e:
             logger.exception(f"Stream extraction failed for %s: {str(e)}", video_url)
@@ -151,7 +152,6 @@ def stream_url_view(request, video_url):
             response["Content-Disposition"] = f'attachment; filename="{title}.mp3"'
             return response
         except Exception as e:
-            print(str(e))
             return JsonResponse({"error": str(e)}, status=500)
 
 

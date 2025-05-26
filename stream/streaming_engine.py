@@ -20,6 +20,7 @@ import urllib.parse
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3, APIC, WXXX, error
 
+from desktop_lan_connect.lan_utils.song_manager import SongManager
 from desktop_lan_connect.models import SongProfile
 from django.http import StreamingHttpResponse, HttpResponse, FileResponse
 
@@ -311,7 +312,9 @@ class StreamingEngine:
         
 
 
-    def range_file_response(self, request, file_path, content_type='audio/mpeg', chunk_size=8192):
+    def range_file_response(self, request, file_path, song_id, content_type='audio/mpeg', chunk_size=8192):
+        if not file_path:
+            file_path = self.get_file_from_device(song_id)
         file_size = os.path.getsize(file_path)
         range_header = request.headers.get('Range', '')
         start, end = 0, file_size - 1
@@ -351,3 +354,25 @@ class StreamingEngine:
         response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
         response['Content-Disposition'] = 'inline; filename="stream.mp3"'
         return response
+
+    def get_file_from_device(self, song_id):
+        song = SongProfile.objects.get(song_id=song_id)
+        device = song.device
+
+        if not device.ip_address or not device.port:
+            logger.warning("Missing IP or port for device %s", device.device_id)
+            raise ValueError("No IP Address or Port provided")
+        
+        device_transfer_url = f"http://{device.ip_address}:{device.port}/transfer/{song.device_file_path}"  
+        logger.info("Requesting device to upload: %s", device_transfer_url)
+
+        response = requests.get(device_transfer_url, timeout=30)
+
+        if response.status_code == 200:
+            data = response.json()
+            file_path = data.get("path")
+            logger.info("Received file path: %s", file_path)
+            return file_path
+
+        logger.error("Device failed to upload song: %s", response.content)
+        raise FileNotFoundError("Device upload failed or song not found.")

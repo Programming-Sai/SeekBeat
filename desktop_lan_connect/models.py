@@ -36,7 +36,8 @@ class SongProfile(models.Model):
     upload_timestamp = models.DateTimeField(auto_now_add=True)
     file_uploaded = models.BooleanField(default=False)
     file_path = models.CharField(max_length=500, null=True, blank=True) 
-
+    port = models.IntegerField(default=8000)
+    device_file_path = models.TextField(blank=True, null=True)
 
 
     def __str__(self):

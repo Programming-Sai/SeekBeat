@@ -60,11 +60,14 @@ device_manager = DeviceManager()
 @api_view(["GET"])
 def start_lan_session_view(request):
     allow_override = request.GET.get("override", "false").lower() == "true"
+    logger.info("Session Started with; override=%s", allow_override)
 
     try:
         qr_path, _ = lan.initialize_session(allow_override=allow_override)
+        logger.info("New LAN session initialized; qr_path=%s", qr_path)
         return Response({"qr_path": qr_path})
     except Exception as e:
+        logger.error("Failed to start LAN session: %s", str(e), exc_info=True)
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # http://localhost:8000/api/lan/session-start/ OR
@@ -88,12 +91,16 @@ def start_lan_session_view(request):
 @api_view(["GET"])
 @ratelimit(key='ip', rate='10/m', block=True)
 def check_lan_session_status(request):
+    logger.info("Checking Session Status; check call made from %s", request.META.get('REMOTE_ADDR'))
     try:
         isActive = lan.has_active_session()
         if isActive:
+            logger.info("LAN session Active")
             return Response({"active": True })
+        logger.info("LAN session Inactive")
         return Response({"active": False})
     except Exception as e:
+        logger.exception("Error checking LAN session status")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # http://localhost:8000/api/lan/session-check/
@@ -129,17 +136,20 @@ def check_lan_session_status(request):
 @ratelimit(key='ip', rate='10/m', block=True)
 def terminate_lan_session(request):
     access_code = request.headers.get("Access-Code")
+    logger.info("Terminate Session Call with; access_code=%s", access_code)
     try:
         isActive = lan.has_active_session()
         session_data = lan.get_session_data()
         if not isActive:
+            logger.warning("No active session to terminate")
             return Response({"error": "No active session found."}, status=status.HTTP_400_BAD_REQUEST)
 
         qr_path = session_data.get("qr_path")
         res = lan.terminate_session(qr_path, access_code)
-
+        logger.info("LAN session terminated; result=%s", res)
         return Response(res, status=200)
     except Exception as e:
+        logger.error("Failed to terminate LAN session: %s", str(e), exc_info=True)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # http://localhost:8000/api/lan/session-end/ With the Access-Code HEADER which would just be the access code
@@ -211,17 +221,24 @@ Registers a new device to the active LAN session or updates an existing one.
 )
 @api_view(["POST"])
 def device_handshake_view(request):
+    logger.info("Device Handshake Initiated; META=%s, data=%s", request.META, request.data)
     try:
         data = request.data
         ip_address = request.META.get('REMOTE_ADDR')
         if not lan.has_active_session(): 
+            logger.warning("Handshake denied: no active session")
             return Response( {"error": "No active LAN session. Cannot register device."}, status=status.HTTP_403_FORBIDDEN)
         
         access_code = request.headers.get("Access-Code")
         system_access_code = lan.get_session_data()["access_code"]
         result, status_ = device_manager.handshake(data, access_code, system_access_code, ip_address)
+        logger.info("Handshake result=%s status=%s", result, status_)
         return Response(result, status=status_)
+    except PermissionDenied as pd:
+        logger.warning("Handshake permission denied: %s", pd)
+        return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
     except Exception as e:
+        logger.exception("Error during device handshake")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # http://localhost:8000/api/lan/device-connect/ With the Access-Code HEADER which would just be the access code
@@ -283,17 +300,25 @@ def device_handshake_view(request):
 )
 @api_view(["POST"])
 def device_reconnect_view(request):
+    logger.info("Device Reconnect Requested called; META=%s, data=%s", request.META, request.data)
     try:
         data = request.data
-        if not lan.has_active_session(): 
+        if not lan.has_active_session():
+            logger.warning("Reconnect denied: no active session") 
             return Response( {"error": "No active LAN session. Cannot register device."}, status=status.HTTP_403_FORBIDDEN)
         
         access_code = request.headers.get("Access-Code")
         system_access_code = lan.get_session_data()["access_code"]
         result, status_ = device_manager.reconnect(data, access_code, system_access_code)
+        logger.info("Reconnect result=%s status=%s", result, status_)
         return Response(result, status=status_)
+    except PermissionDenied as pd:
+        logger.warning("Reconnect permission denied: %s", pd)
+        return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
     except Exception as e:
+        logger.exception("Error during device reconnect")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 
 # http://localhost:8000/api/lan/device-reconnect/ With the Access-Code HEADER which would just be the access code
 
@@ -328,14 +353,21 @@ def device_reconnect_view(request):
 )
 @api_view(["POST"])
 def device_disconnect_view(request):
+    logger.info("Device Disconnect Requested; META=%s, data=%s", request.META, request.data)
     try:
         device_id = request.data.get("device_id")
         keep_data = request.data.get("keep_data", True)
         result, code = device_manager.disconnect(device_id, keep_data)
         SongManager.delete_uploaded_files_for_device(UUID(device_id))
+        logger.info("Device %s disconnected; keep_data=%s result=%s", device_id, keep_data, result)
         return Response(result, status=code)
+    except PermissionDenied as pd:
+        logger.warning("Disconnect permission denied: %s", pd)
+        return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
     except Exception as e:
+        logger.exception("Error during device disconnect")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
         
 
@@ -386,15 +418,22 @@ def device_disconnect_view(request):
 )
 @api_view(["GET"])
 def active_devices_view(request):
+    logger.info("Viewing All active Devices; headers=%s", request.headers)
     try:
         if not lan.has_active_session():
+            logger.warning("List devices denied: no active session")
             return Response({"error": "No active LAN session."}, status=status.HTTP_403_FORBIDDEN)
         
         access_code = request.headers.get("Access-Code")
         system_access_code = lan.get_session_data()["access_code"]
         devices_data, status_ = device_manager.get_active_devices(access_code, system_access_code)
+        logger.info("Active devices fetched; count=%s", len(devices_data[1]))
         return Response({"count":devices_data[1], "devices": devices_data[0]}, status=status_)
+    except PermissionDenied as pd:
+        logger.warning("List devices permission denied: %s", pd)
+        return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
     except Exception as e:
+        logger.exception("Error listing active devices")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # http://localhost:8000/api/lan/devices/ With the Access-Code HEADER which would just be the access code
@@ -422,21 +461,26 @@ def active_devices_view(request):
 )
 @api_view(["GET", "DELETE"])
 def list_delete_device_songs_view(request, device_id: str):
+    logger.info("Get/List or Delete all songs; method=%s device_id=%s", request.method, device_id)
     try:
         SongManager.verify_access(request.headers.get("Access-Code"))
         if request.method == "GET":
             songs = SongManager.list_songs(str(device_id))
+            logger.info("Fetched %s songs for device %s", len(songs), device_id)
             return Response(songs, status=status.HTTP_200_OK)
         elif request.method == "DELETE":
             result = SongManager.delete_all_songs(str(id))
+            logger.info("Deleted all songs for device %s", device_id)
             return Response(result, status=status.HTTP_200_OK)
-    except PermissionDenied as e:
-        return Response({"error": str(e)}, status=403)
-    except ValidationError as e:
-        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+    except PermissionDenied as pd:
+        logger.warning("Access denied in list/delete songs: %s", pd)
+        return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
+    except ValidationError as ve:
+        logger.warning("Validation error in list/delete songs: %s", ve)
+        return Response({"error": str(ve)}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
+        logger.exception("Error in list/delete songs for device %s", device_id)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 
 
@@ -474,15 +518,20 @@ def list_delete_device_songs_view(request, device_id: str):
 )
 @api_view(["POST"])
 def add_single_song_metadata(request, device_id):
+    logger.info("Add single song metadata; device_id=%s", device_id)
     try:
         SongManager.verify_access(request.headers.get("Access-Code"))
         result = SongManager.add_song(str(device_id), request.data)
+        logger.info("Added song metadata to device %s: %s", device_id, result.get("song_id", "N/A"))
         return Response(result, status=200)
     except PermissionDenied as e:
+        logger.warning("Access denied in add_single_song_metadata: %s", e)
         return Response({"error": str(e)}, status=403)
     except ValidationError as e:
+        logger.warning("Validation error in add_single_song_metadata: %s", e)
         return Response({"error": str(e)}, status=404)
     except Exception as e:
+        logger.exception("Error in add_single_song_metadata for device %s", device_id)
         return Response({"error": str(e)}, status=500)
 
 
@@ -511,23 +560,28 @@ def add_single_song_metadata(request, device_id):
 )
 @api_view(["PATCH", "DELETE"])
 def patch_delete_song_view(request, device_id: str, song_id: str):
+    logger.info("Patch or Delete song; method=%s device_id=%s song_id=%s", request.method, device_id, song_id)
     try:
         SongManager.verify_access(request.headers.get("Access-Code"))
         if request.method == "PATCH":
             result = SongManager.update_song(str(device_id), str(song_id), request.data)
+            logger.info("Patched song %s for device %s", song_id, device_id)
             return Response(result, status=status.HTTP_200_OK)
 
         elif request.method == "DELETE":
             result = SongManager.delete_song(str(device_id), str(song_id))
+            logger.info("Deleted song %s for device %s", song_id, device_id)
             return Response(result, status=status.HTTP_200_OK)
 
-    except PermissionDenied as e:
-        return Response({"error": str(e)}, status=403)
-    except ValidationError as e:
-        return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+    except PermissionDenied as pd:
+        logger.warning("Access denied for song %s: %s", song_id, pd)
+        return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
+    except ValidationError as ve:
+        logger.warning("Validation error for song %s: %s", song_id, ve)
+        return Response({"error": str(ve)}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
+        logger.exception("Error in get/delete for song %s on device %s", song_id, device_id)
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 
 
@@ -553,18 +607,23 @@ def patch_delete_song_view(request, device_id: str, song_id: str):
 @api_view(["POST"])
 @parser_classes([MultiPartParser, FormParser])
 def upload_song_file_view(request, device_id: str, song_id: str):
+    logger.info("Upload song; method=%s device_id=%s", request.method, device_id)
     serializer = SongUploadSerializer(data=request.data)
     if serializer.is_valid():
         try:
             SongManager.verify_access(request.headers.get("Access-Code"))
             file = serializer.validated_data["file"]
             result = SongManager.upload_song_file(str(device_id), str(song_id), file)
+            logger.info("Uploaded song for device %s: %s", device_id, song.get("title"))
             return Response(result, status=status.HTTP_201_CREATED)
-        except PermissionDenied as e:
-            return Response({"error": str(e)}, status=403)
+        except PermissionDenied as pd:
+            logger.warning("Access denied during upload: %s", pd)
+            return Response({"error": str(pd)}, status=status.HTTP_403_FORBIDDEN)
         except ValidationError as ve:
-            return Response({"error": str(ve)}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning("Validation error during upload: %s", ve)
+            return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            logger.exception("Upload error for device %s", device_id)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -590,20 +649,25 @@ def upload_song_file_view(request, device_id: str, song_id: str):
 )
 @api_view(["POST"])
 def bulk_add_songs_view(request, device_id: str):
+    logger.info("Bulk add songs; device_id=%s", device_id)
     serializer = SongProfileSerializer(data=request.data, many=True)
     if serializer.is_valid():
         try:
             SongManager.verify_access(request.headers.get("Access-Code"))
             result = SongManager.bulk_add_songs(str(device_id), serializer.validated_data)
+            logger.info("Bulk added %d songs to device %s", len(serializer.validated_data), device_id)
             return Response(result, status=status.HTTP_201_CREATED)
         except PermissionDenied as e:
+            logger.warning("Access denied in bulk_add_songs_view: %s", e)
             return Response({"error": str(e)}, status=403)
         except ValidationError as ve:
+            logger.warning("Validation error in bulk_add_songs_view: %s", ve)
             return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            logger.exception("Error in bulk_add_songs_view for device %s", device_id)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    logger.warning("Serializer validation failed in bulk_add_songs_view: %s", serializer.errors)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 
@@ -630,11 +694,15 @@ def bulk_add_songs_view(request, device_id: str):
 @api_view(["GET"])
 @ratelimit(key="ip", rate="10/m", block=True)
 def all_songs_from_active_devices_view(request):
+    logger.info("Fetching all songs from active devices")
     try:
         SongManager.verify_access(request.headers.get("Access-Code"))
         results = SongManager().get_all_songs_from_active_devices()
+        logger.info("Fetched %d songs from active devices", len(results))
         return Response(results, status=200)
     except PermissionError as e:
+        logger.warning("Access denied in all_songs_from_active_devices_view: %s", e)
         return Response({"error": str(e)}, status=403)
     except Exception as e:
+        logger.exception("Error in all_songs_from_active_devices_view")
         return Response({"error": str(e)}, status=500)
