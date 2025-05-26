@@ -614,7 +614,7 @@ def upload_song_file_view(request, device_id: str, song_id: str):
             SongManager.verify_access(request.headers.get("Access-Code"))
             file = serializer.validated_data["file"]
             result = SongManager.upload_song_file(str(device_id), str(song_id), file)
-            logger.info("Uploaded song for device %s: %s", device_id, song.get("title"))
+            logger.info("Uploaded song for device %s", device_id)
             return Response(result, status=status.HTTP_201_CREATED)
         except PermissionDenied as pd:
             logger.warning("Access denied during upload: %s", pd)
