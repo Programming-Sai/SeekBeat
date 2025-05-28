@@ -7,12 +7,15 @@ from .serializers import BookmarkedVideoSerializer
 
 logger = logging.getLogger('seekbeat')
 
-
 @extend_schema(
     summary="Add a new bookmarked video",
     description="Adds a YouTube video to bookmarks with metadata like title, uploader, duration, and thumbnail.",
     request=BookmarkedVideoSerializer,
-    responses={201: BookmarkedVideoSerializer, 400: OpenApiResponse(description="Invalid data")},
+    responses={
+        201: BookmarkedVideoSerializer,
+        400: OpenApiResponse(description="Invalid data – payload validation failed"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
     tags=["Bookmarks"],
 )
 @api_view(["POST"])
@@ -34,7 +37,10 @@ def add_bookmark_view(request):
 @extend_schema(
     summary="Get all bookmarked videos",
     description="Returns a list of all bookmarked videos ordered by creation time (most recent first).",
-    responses={200: BookmarkedVideoSerializer(many=True)},
+    responses={
+        200: BookmarkedVideoSerializer(many=True),
+        500: OpenApiResponse(description="Internal server error"),
+    },
     tags=["Bookmarks"],
 )
 @api_view(["GET"])
@@ -56,7 +62,11 @@ def get_all_bookmarks_view(request):
 @extend_schema(
     summary="Get a bookmarked video by ID",
     description="Returns metadata of a single bookmarked video by its UUID.",
-    responses={200: BookmarkedVideoSerializer, 404: OpenApiResponse(description="Bookmark not found")},
+    responses={
+        200: BookmarkedVideoSerializer,
+        404: OpenApiResponse(description="Bookmark not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
     tags=["Bookmarks"],
 )
 @api_view(["GET"])
@@ -78,7 +88,11 @@ def get_bookmark_view(request, id):
 @extend_schema(
     summary="Delete a bookmarked video by ID",
     description="Deletes a single bookmarked video using its UUID.",
-    responses={200: OpenApiTypes.OBJECT, 404: OpenApiResponse(description="Bookmark not found")},
+    responses={
+        200: OpenApiTypes.OBJECT,
+        404: OpenApiResponse(description="Bookmark not found"),
+        500: OpenApiResponse(description="Internal server error"),
+    },
     tags=["Bookmarks"],
 )
 @api_view(["DELETE"])
@@ -100,7 +114,10 @@ def delete_bookmark_view(request, id):
 @extend_schema(
     summary="Delete all bookmarked videos",
     description="Deletes all bookmarked videos from the database.",
-    responses={200: OpenApiTypes.OBJECT},
+    responses={
+        200: OpenApiTypes.OBJECT,
+        500: OpenApiResponse(description="Internal server error"),
+    },
     tags=["Bookmarks"],
 )
 @api_view(["DELETE"])
