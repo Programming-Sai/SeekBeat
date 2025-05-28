@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/search/', include('search.urls')),
     path('api/stream/', include('stream.urls')),
+    path('api/ext/', include('chrome_extension.urls')),
     path('api/lan/', include('desktop_lan_connect.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

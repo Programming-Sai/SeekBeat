@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'desktop_lan_connect',
+    'chrome_extension',
 ]
 
 MIDDLEWARE = [
