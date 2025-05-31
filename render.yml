@@ -1,0 +1,10 @@
+# render.yaml
+services:
+  - type: web
+    name: seekbeat
+    plan: free
+    env: python
+    buildCommand: >
+      pip install -r requirements.txt &&
+      python manage.py collectstatic --noinput
+    startCommand: gunicorn seekbeat.wsgi --bind 0.0.0.0:$PORT

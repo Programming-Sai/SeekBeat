@@ -5,7 +5,7 @@ import socket
 import os
 import subprocess
 from PIL import Image
-from config import QR_DIR, PORT
+from config import QR_DIR, PORT, IS_DESKTOP
 
 
 
@@ -191,21 +191,24 @@ class LANCreator:
         Raises:
             Exception: If a session already exists and override is False.
         """
-        ip = self.get_lan_ip()
-        
-        # Check if any session is already active
-        if self.has_active_session():
-            if not allow_override:
-                raise Exception("An active session already exists.")
-            else:
-                self.terminate_all_sessions()
+        if IS_DESKTOP:
+            ip = self.get_lan_ip()
+            
+            # Check if any session is already active
+            if self.has_active_session():
+                if not allow_override:
+                    raise Exception("An active session already exists.")
+                else:
+                    self.terminate_all_sessions()
 
-        access_code = str(uuid.uuid4())
-        wifi_payload = {"access_code": access_code, "host_ip": ip, "port": self.port}
+            access_code = str(uuid.uuid4())
+            wifi_payload = {"access_code": access_code, "host_ip": ip, "port": self.port}
 
-        filename = f"lan_session_{access_code}.png"
-        logo_path = os.path.join(self.qr_dir, "logo.png")
-        qr_path = self.generate_stylized_qr(json.dumps(wifi_payload), filename, logo_path=logo_path)
+            filename = f"lan_session_{access_code}.png"
+            logo_path = os.path.join(self.qr_dir, "logo.png")
+            qr_path = self.generate_stylized_qr(json.dumps(wifi_payload), filename, logo_path=logo_path)
 
-        self.save_session(access_code, ip, self.port, qr_path)
-        return qr_path, access_code
+            self.save_session(access_code, ip, self.port, qr_path)
+            return qr_path, access_code
+        else:
+            raise NotImplementedError("Session Initialisation is not allowed on the web")
