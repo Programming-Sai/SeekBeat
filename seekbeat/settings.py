@@ -135,6 +135,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [BASE_DIR / "static"]
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -190,4 +192,17 @@ LOGGING = {
             'propagate': False,
         },
     }
+}
+
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'SeekBeat API',
+    'DESCRIPTION': 'Modular music streaming and download backend powered by Django and yt-dlp.',
+    'VERSION': '1.0.0',
+    'SWAGGER_UI_SETTINGS': {
+        # Optional, example Swagger UI customization
+        'docExpansion': 'none',
+        'deepLinking': True,
+    },
 }
