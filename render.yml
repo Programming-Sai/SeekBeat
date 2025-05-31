@@ -8,3 +8,4 @@ services:
       pip install -r requirements.txt &&
       python manage.py collectstatic --noinput
     startCommand: gunicorn seekbeat.wsgi --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/healthcheck
