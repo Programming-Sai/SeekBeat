@@ -5,7 +5,7 @@ import socket
 import os
 import subprocess
 from PIL import Image
-from config import QR_DIR, PORT, IS_DESKTOP
+from config import QR_DIR, PORT, IS_DESKTOP, IS_DEV
 
 
 
@@ -191,7 +191,7 @@ class LANCreator:
         Raises:
             Exception: If a session already exists and override is False.
         """
-        if IS_DESKTOP:
+        if IS_DESKTOP or IS_DEV:
             ip = self.get_lan_ip()
             
             # Check if any session is already active
