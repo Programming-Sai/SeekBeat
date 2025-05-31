@@ -5,8 +5,7 @@ import socket
 import os
 import subprocess
 from PIL import Image
-from django.conf import settings
-
+from config import QR_DIR, PORT
 
 
 
@@ -28,8 +27,8 @@ class LANCreator:
         then ensures `active_sessions.json` exists (initially empty).
         """
         # self.qr_dir = os.path.join(settings.BASE_DIR, 'lan_utils', 'qrcodes')
-        self.qr_dir = r"c:\Users\pc\Desktop\Projects\SeekBeat\desktop_lan_connect\lan_utils\qrcodes"
-        self.port = 3001
+        self.qr_dir = QR_DIR
+        self.port = PORT
         self.fillColor = "red"
         self.backColor = "black"
         os.makedirs(self.qr_dir, exist_ok=True)

@@ -19,7 +19,7 @@ import logging
 import urllib.parse
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3, APIC, WXXX, error
-
+from config import IS_DESKTOP, FFMPEG_DIR
 from desktop_lan_connect.lan_utils.song_manager import SongManager
 from desktop_lan_connect.models import SongProfile
 from django.http import StreamingHttpResponse, HttpResponse, FileResponse
@@ -50,7 +50,7 @@ class StreamingEngine:
             "noplaylist": True,
             "skip_download": True,
         }
-        custom_dir = os.path.abspath(r"c:\Users\pc\Desktop\Projects\SeekBeat\ffmpeg")
+        custom_dir = FFMPEG_DIR
         custom_path = os.path.join(custom_dir, "ffmpeg.exe")
 
 

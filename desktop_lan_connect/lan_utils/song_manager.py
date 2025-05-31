@@ -1,12 +1,11 @@
 import os
-import shutil
 from uuid import UUID
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from .initialization import LANCreator
 from django.core.exceptions import PermissionDenied
 from ..models import DeviceProfile, SongProfile
+from config import SONG_STORAGE_PATH
 
-SONG_STORAGE_PATH = r"c:\Users\pc\Desktop\Projects\SeekBeat\desktop_lan_connect\lan_utils\songs"
 
 class SongManager:
 
