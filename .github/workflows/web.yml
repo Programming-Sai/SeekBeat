@@ -3,7 +3,12 @@ name: Deploy to Render
 on:
   push:
     branches:
-      - web # Or your deployment branch
+      - web
+
+permissions:
+  contents: read
+  deployments: write
+  statuses: write
 
 jobs:
   deploy:
