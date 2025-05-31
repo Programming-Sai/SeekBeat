@@ -427,7 +427,7 @@ def active_devices_view(request):
         access_code = request.headers.get("Access-Code")
         system_access_code = lan.get_session_data()["access_code"]
         devices_data, status_ = device_manager.get_active_devices(access_code, system_access_code)
-        logger.info("Active devices fetched; count=%s", len(devices_data[1]))
+        logger.info("Active devices fetched; count=%s", devices_data[1])
         return Response({"count":devices_data[1], "devices": devices_data[0]}, status=status_)
     except PermissionDenied as pd:
         logger.warning("List devices permission denied: %s", pd)

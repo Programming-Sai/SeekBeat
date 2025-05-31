@@ -6,6 +6,9 @@ import os
 import subprocess
 from PIL import Image
 from config import QR_DIR, PORT, IS_DESKTOP, IS_DEV
+from django.contrib.staticfiles import finders
+
+
 
 
 
@@ -99,6 +102,7 @@ class LANCreator:
         Returns:
             bool: True if `active_sessions.json` contains any keys, False otherwise.
         """
+        print(self.session_store)
         if not os.path.isfile(self.session_store):
             return False
         with open(self.session_store, "r") as f:
@@ -205,7 +209,7 @@ class LANCreator:
             wifi_payload = {"access_code": access_code, "host_ip": ip, "port": self.port}
 
             filename = f"lan_session_{access_code}.png"
-            logo_path = os.path.join(self.qr_dir, "logo.png")
+            logo_path = finders.find("seekbeat-favicon-light.png")
             qr_path = self.generate_stylized_qr(json.dumps(wifi_payload), filename, logo_path=logo_path)
 
             self.save_session(access_code, ip, self.port, qr_path)
