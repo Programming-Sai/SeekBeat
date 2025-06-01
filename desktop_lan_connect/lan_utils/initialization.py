@@ -7,7 +7,11 @@ import os
 from PIL import Image, ImageDraw, ImageColor
 from config import QR_DIR, PORT
 from django.contrib.staticfiles import finders
+import logging
 
+logger = logging.getLogger('seekbeat')
+handler = logging.getLogger('seekbeat').handlers[0]
+handler.doRollover()
 
 
 class LANCreator:
@@ -37,6 +41,7 @@ class LANCreator:
         if not os.path.isfile(self.session_store):
             with open(self.session_store, "w") as f:
                 json.dump({}, f)
+        logger.info("LANCreator initialized with QR directory: %s", self.qr_dir)
 
 
     def get_lan_ip(self) -> str:
@@ -49,6 +54,7 @@ class LANCreator:
         try:
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
+            logger.debug("LAN IP detected: %s", ip)
         finally:
             s.close()
         return ip
@@ -71,7 +77,7 @@ class LANCreator:
         Returns:
             str: The full path to the saved QR code image.
         """
-        print(back_color, fill_color)
+        logger.info("Generating QR code for data: %s", data)
         qr = qrcode.QRCode(
             error_correction=qrcode.constants.ERROR_CORRECT_H,
             box_size=10,
@@ -87,30 +93,34 @@ class LANCreator:
         img = qr.make_image(fill_color=self.fillColor, back_color=self.backColor).convert("RGB")
 
         if logo_path and os.path.exists(logo_path):
-            logo = Image.open(logo_path).convert("RGBA")
-            box_size = img.size[0] // 4
-            padding = box_size // 10  # 10% padding
-            inner_size = box_size - 2 * padding
-            logo = logo.resize((inner_size, inner_size), Image.LANCZOS)
+            try:
+                logger.debug("Adding logo overlay from: %s", logo_path)
+                logo = Image.open(logo_path).convert("RGBA")
+                box_size = img.size[0] // 4
+                padding = box_size // 10  # 10% padding
+                inner_size = box_size - 2 * padding
+                logo = logo.resize((inner_size, inner_size), Image.LANCZOS)
 
 
-            # Step 2: Create circular background
-            circle = Image.new("RGBA", (box_size, box_size), (0, 0, 0, 0))  # fully transparent
-            draw = ImageDraw.Draw(circle)
-            draw.ellipse((0, 0, box_size, box_size), fill=self._parse_color(back_color) + (255,))
+                # Step 2: Create circular background
+                circle = Image.new("RGBA", (box_size, box_size), (0, 0, 0, 0))  # fully transparent
+                draw = ImageDraw.Draw(circle)
+                draw.ellipse((0, 0, box_size, box_size), fill=self._parse_color(back_color) + (255,))
 
-            # Step 3: Paste logo onto circle, centered
-            circle.paste(logo, (padding, padding), logo)
+                # Step 3: Paste logo onto circle, centered
+                circle.paste(logo, (padding, padding), logo)
 
 
-            # Step 4: Paste circular logo onto QR code
-            pos = ((img.size[0] - box_size) // 2, (img.size[1] - box_size) // 2)
-            img.paste(circle, pos, circle)
-
+                # Step 4: Paste circular logo onto QR code
+                pos = ((img.size[0] - box_size) // 2, (img.size[1] - box_size) // 2)
+                img.paste(circle, pos, circle)
+            except Exception as e:
+                logger.error("Failed to apply logo overlay: %s", str(e), exc_info=True)
 
 
         save_path = os.path.join(self.qr_dir, filename)
         img.save(save_path)
+        logger.info("QR code saved to %s", save_path)
         return save_path
 
 
@@ -119,13 +129,15 @@ class LANCreator:
         Parse a color string into an RGB tuple. Supports named colors and hex codes.
         Returns default color (as string) if invalid or empty.
         """
-        print("This is the color: ", type(color_str), color_str)
         if not color_str:
             color_str = default
         try:
-            return ImageColor.getrgb(color_str)
+            rgb = ImageColor.getrgb(color_str)
+            logger.debug("Parsed color %s to RGB %s", color_str, rgb)
+            return rgb
         except ValueError:
-            raise ValueError(f"Invalid color string: '{color_str}'")
+            logger.error("Invalid color string: '%s'", color_str)
+            raise
 
 
 
@@ -137,10 +149,13 @@ class LANCreator:
             bool: True if `active_sessions.json` contains any keys, False otherwise.
         """
         if not os.path.isfile(self.session_store):
+            logger.debug("Session store does not exist.")
             return False
         with open(self.session_store, "r") as f:
             sessions = json.load(f)
-            return bool(sessions)  # True if any session exists
+            active = bool(sessions)
+            logger.debug("Session check: %s", active)
+            return active
 
 
 
@@ -163,17 +178,18 @@ class LANCreator:
         Raises:
             PermissionError: If the access_code is invalid.
         """
-        if self.get_session_data()['access_code'] == access_code:
-            if qr_path and os.path.isfile(qr_path):
-                os.remove(qr_path)
-
-            if os.path.isfile(self.session_store):
+        try:
+            if self.qr_dir and os.path.isdir(self.qr_dir):
+                shutil.rmtree(self.qr_dir)
+                os.makedirs(self.qr_dir, exist_ok=True)
+                self.session_store = os.path.join(self.qr_dir, "active_sessions.json")
                 with open(self.session_store, "w") as f:
-                    f.write(json.dumps({}))
-            
-            return {"message": "Session terminated."}
-        else:
-            raise PermissionError("Invalid access code.")
+                    json.dump({}, f)
+                logger.info("All sessions terminated and directory reset.")
+            else:
+                raise FileNotFoundError(f"{self.qr_dir} does not exist.")
+        except Exception as e:
+            logger.error("Failed to terminate all sessions: %s", str(e), exc_info=True)
 
                 
 
@@ -189,12 +205,19 @@ class LANCreator:
             port (int): Port number for client connections.
             qr_path (str): Full path to the QR code PNG.
         """
-        with open(self.session_store, "r+") as f:
-            sessions = json.load(f)
-            sessions = {"access_code":access_code, "ip": ip, "port": port, "qr_path": qr_path}
-            f.seek(0)
-            json.dump(sessions, f)
-            f.truncate()
+        try:
+            session_data = {
+                "access_code": access_code,
+                "ip": ip,
+                "port": port,
+                "qr_path": qr_path
+            }
+            with open(self.session_store, "w") as f:
+                json.dump(session_data, f)
+            logger.info("Session saved: %s", session_data)
+        except Exception as e:
+            logger.error("Failed to save session: %s", str(e), exc_info=True)
+
 
 
 
@@ -207,8 +230,14 @@ class LANCreator:
         Returns:
             dict: { "access_code": ..., "ip": ..., "port": ..., "qr_path": ... }
         """
-        with open(self.session_store, "r") as f:
-            return json.loads(f.read())
+        try:
+            with open(self.session_store, "r") as f:
+                data = json.load(f)
+                logger.debug("Retrieved session data: %s", data)
+                return data
+        except Exception as e:
+            logger.error("Failed to read session data: %s", str(e), exc_info=True)
+            raise
 
 
 
@@ -233,6 +262,7 @@ class LANCreator:
         Raises:
             Exception: If a session already exists and override is False.
         """
+        logger.info("Initializing new LAN session (override=%s)...", allow_override)
         ip = self.get_lan_ip()
         
         # Check if any session is already active
@@ -256,6 +286,7 @@ class LANCreator:
         )
 
         self.save_session(access_code, ip, self.port, qr_path)
+        logger.info("New LAN session initialized: %s", access_code)
         return qr_path, access_code
 
 
@@ -267,12 +298,17 @@ class LANCreator:
         Raises:
             FileNotFoundError: If the QR code directory does not exist.
         """
-        if self.qr_dir and os.path.isdir(self.qr_dir):
-            shutil.rmtree(self.qr_dir)
-            os.makedirs(self.qr_dir, exist_ok=True)
-            self.session_store = os.path.join(self.qr_dir, "active_sessions.json")
-            if not os.path.isfile(self.session_store):
-                with open(self.session_store, "w") as f:
-                    json.dump({}, f)
-        else:
-            raise FileNotFoundError(f"{self.qr_dir} does not exist.")
+        try:
+            logger.info("Terminating all LAN sessions.")
+            if self.qr_dir and os.path.isdir(self.qr_dir):
+                shutil.rmtree(self.qr_dir)
+                os.makedirs(self.qr_dir, exist_ok=True)
+                self.session_store = os.path.join(self.qr_dir, "active_sessions.json")
+                if not os.path.isfile(self.session_store):
+                    with open(self.session_store, "w") as f:
+                        json.dump({}, f)
+                logger.info("All sessions terminated and directory reset.")
+            else:
+                raise FileNotFoundError(f"{self.qr_dir} does not exist.")
+        except Exception as e:
+            logger.error("Failed to terminate sessions: %s", str(e), exc_info=True)
