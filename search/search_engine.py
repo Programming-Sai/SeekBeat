@@ -6,9 +6,8 @@ import os
 import re
 import unicodedata
 from django.db.models import Q
-
+from urllib.parse import urlparse, parse_qs
 import logging
-
 from desktop_lan_connect.models import DeviceProfile, SongProfile
 logger = logging.getLogger('seekbeat')
 
@@ -99,7 +98,7 @@ class SearchEngine:
         if search_term['type'] == 'invalid':
             return search_term['reason']
         elif search_term['type'] == 'youtube':
-            search_term = search_term['query']
+            search_term = search_term['query'] # Since yt-dlp fails on the web links would be sarched for using the data api.
             query = f"{search_term}"
         elif search_term['type'] == 'search':
             search_term = search_term['query']
@@ -285,7 +284,7 @@ class SearchEngine:
         if search_term['type'] == 'invalid':
             return search_term['reason']
         elif search_term['type'] == 'youtube':
-            return await self.regular_search(search_term)
+            return [await self.search_by_video_id_with_yt_api(self._extract_video_id(search_term))] # Since yt-dlp fails on the web links would be sarched for using the data api.
         elif search_term['type'] == 'search':
             search_term = search_term['query']
 
@@ -472,3 +471,89 @@ class SearchEngine:
         
         # Otherwise treat it as a search term
         return {'type': 'search', 'query': query}
+    
+
+
+
+    def _extract_video_id(self, url_or_id: str) -> str:
+        # If input is already just a video ID (11 characters)
+        url_or_id = url_or_id.get("query")
+        print(url_or_id)
+        if re.fullmatch(r"[\w-]{11}", url_or_id):
+            return url_or_id
+
+        try:
+            parsed_url = urlparse(url_or_id)
+            query = parse_qs(parsed_url.query)
+
+            # Case 1: Standard watch URL
+            if parsed_url.path == '/watch' and 'v' in query:
+                return query['v'][0]
+
+            # Case 2: youtu.be/<video_id>
+            if parsed_url.netloc in ['youtu.be']:
+                return parsed_url.path.lstrip('/')
+
+            # Case 3: /embed/<video_id> or /v/<video_id> or /shorts/<video_id>
+            match = re.match(r'^/(embed|v|shorts)/([\w-]{11})$', parsed_url.path)
+            if match:
+                return match.group(2)
+
+        except Exception as e:
+            print(f"Failed to extract video ID: {e}")
+
+        return None  # or raise Exception("Invalid YouTube link")
+
+
+
+    async def search_by_video_id_with_yt_api(self, video_id, api_key=None):
+        logger.info("YT-API lookup for video ID=%s", video_id)
+
+        api_key = api_key or self.NORMAL_API_KEY
+        if not api_key:
+            raise ValueError("YouTube API key not provided or invalid.")
+
+        url = "https://www.googleapis.com/youtube/v3/videos"
+        params = {
+            "part": "snippet,contentDetails",
+            "id": video_id,
+            "key": api_key
+        }
+
+        try:
+            response = await self._retry_request(url, params, video_id, retries=self.retries)
+            data = response.json()
+            items = data.get("items", [])
+            if not items:
+                raise ValueError(f"No results returned for video ID: {video_id}")
+            logger.debug("YT-API returned metadata for video ID=%s", video_id)
+        except Exception as e:
+            logger.exception("Failed parsing JSON for video ID=%s", video_id)
+            print(f"Youtube API failed after retries: {e}")
+            logger.info("Falling back to yt-dlp for video ID=%s", video_id)
+            return await self.regular_search(f"https://www.youtube.com/watch?v={video_id}")  # Fallback
+
+        item = items[0]
+        snippet = item.get("snippet", {})
+        content_details = item.get("contentDetails", {})
+        raw_duration = content_details.get("duration")
+
+        # Parse duration using the same helper
+        parsed_duration = self._parse_duration(raw_duration)
+
+        thumbnails = snippet.get("thumbnails", {})
+        largest_thumb = max(thumbnails.values(), key=lambda t: t.get("height", 0) * t.get("width", 0), default={})
+        smallest_thumb = min(thumbnails.values(), key=lambda t: t.get("width", float("inf")), default={})
+
+        entry = {
+            "title": snippet.get("title"),
+            "duration": parsed_duration,
+            "uploader": snippet.get("channelTitle"),
+            "thumbnail": thumbnails.get("high", {}).get("url"),
+            "webpage_url": f"https://www.youtube.com/watch?v={video_id}",
+            "upload_date": snippet.get("publishedAt"),
+            "largest_thumbnail": largest_thumb.get("url"),
+            "smallest_thumbnail": smallest_thumb.get("url")
+        }
+
+        return entry
