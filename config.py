@@ -14,7 +14,6 @@ IS_WEB = SEEKBEAT_ENV == "web"
 IS_DESKTOP = SEEKBEAT_ENV == "desktop"
 IS_DEV = SEEKBEAT_ENV == "dev"
 
-print(SEEKBEAT_ENV)
 
 # === App Name ===
 APP_NAME = "SeekBeat"
@@ -35,12 +34,12 @@ SONG_STORAGE_PATH = APP_STORAGE_DIR / "songs"
 LOG_DIR = APP_STORAGE_DIR / "logs"
 LOG_FILE = LOG_DIR / "seekbeat.log"
 
-PORT = 8000
+PORT = int(os.environ.get("PORT", 8010))
+
 
 # === Optional Dev Paths (Only for local debugging)
 if IS_DEV:
     DEV_ROOT = Path(__file__).resolve().parent.parent
-    print(DEV_ROOT, DEV_ROOT / "SeekBeat")
     QR_DIR = DEV_ROOT / "SeekBeat" / "desktop_lan_connect" / "lan_utils" / "qrcodes"
     SONG_STORAGE_PATH = DEV_ROOT / "SeekBeat" / "desktop_lan_connect" / "lan_utils" / "songs"
     FFMPEG_DIR = DEV_ROOT / "SeekBeat" / "ffmpeg"

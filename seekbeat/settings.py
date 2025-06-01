@@ -55,6 +55,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'seekbeat.middleware.RestrictByIPMiddleware',
 ]
 
 # CORS_ALLOW_ALL_ORIGINS = True  # For testing; you can specify origins like:
