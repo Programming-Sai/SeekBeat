@@ -5,7 +5,7 @@ from pathlib import Path
 from platformdirs import user_data_dir
 from dotenv import load_dotenv
 
-load_dotenv()  # Load .env
+load_dotenv(override=True)  # Load .env
 
 # === Environment Flag ===
 SEEKBEAT_ENV = os.getenv("SEEKBEAT_ENV", "desktop").lower()
@@ -13,6 +13,8 @@ SEEKBEAT_ENV = os.getenv("SEEKBEAT_ENV", "desktop").lower()
 IS_WEB = SEEKBEAT_ENV == "web"
 IS_DESKTOP = SEEKBEAT_ENV == "desktop"
 IS_DEV = SEEKBEAT_ENV == "dev"
+
+print(SEEKBEAT_ENV)
 
 # === App Name ===
 APP_NAME = "SeekBeat"
@@ -38,8 +40,9 @@ PORT = 8000
 # === Optional Dev Paths (Only for local debugging)
 if IS_DEV:
     DEV_ROOT = Path(__file__).resolve().parent.parent
-    QR_DIR = DEV_ROOT / "desktop_lan_connect" / "lan_utils" / "qrcodes"
-    SONG_STORAGE_PATH = DEV_ROOT / "desktop_lan_connect" / "lan_utils" / "songs"
-    FFMPEG_DIR = DEV_ROOT / "ffmpeg"
-    LOG_DIR = DEV_ROOT / "logs"
+    print(DEV_ROOT, DEV_ROOT / "SeekBeat")
+    QR_DIR = DEV_ROOT / "SeekBeat" / "desktop_lan_connect" / "lan_utils" / "qrcodes"
+    SONG_STORAGE_PATH = DEV_ROOT / "SeekBeat" / "desktop_lan_connect" / "lan_utils" / "songs"
+    FFMPEG_DIR = DEV_ROOT / "SeekBeat" / "ffmpeg"
+    LOG_DIR = DEV_ROOT / "SeekBeat" / "logs"
     LOG_FILE = LOG_DIR / "seekbeat.log"

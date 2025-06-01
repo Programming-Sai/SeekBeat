@@ -26,7 +26,11 @@ device_manager = DeviceManager()
 
 @extend_schema(
     summary="Start Local Network Session",
-    description="Generates a QR code to join a local session. Optionally override an existing session.",
+    description=(
+        "Generates a QR code to join a local LAN session. "
+        "Supports optional override to terminate existing session. "
+        "Customize QR fill and background colors using named colors or hex codes (e.g., '#222222')."
+    ),
     parameters=[
         OpenApiParameter(
             name="override",
@@ -34,36 +38,71 @@ device_manager = DeviceManager()
             required=False,
             type=bool,
             location=OpenApiParameter.QUERY
-        )
+        ),
+        OpenApiParameter(
+            name="fill",
+            description="Color of QR code modules (default 'black'). Supports named colors or hex codes.",
+            required=False,
+            type=str,
+            location=OpenApiParameter.QUERY
+        ),
+        OpenApiParameter(
+            name="back",
+            description="Background color of QR code (default 'white'). Supports named colors or hex codes.",
+            required=False,
+            type=str,
+            location=OpenApiParameter.QUERY
+        ),
+        OpenApiParameter(
+            name="theme",
+            description="UI theme preference, e.g., 'dark' or 'light' (default 'dark').",
+            required=False,
+            type=str,
+            location=OpenApiParameter.QUERY
+        ),
     ],
     responses={
-        200: OpenApiResponse(description="QR code path returned", examples=[
-            OpenApiExample(
-                name="Session Started",
-                summary="Successful response",
-                value={"qr_path": "/path/to/qr_code.png"},
-                response_only=True
-            )
-        ]),
-        400: OpenApiResponse(description="Session already exists or error occurred", examples=[
-            OpenApiExample(
-                name="Session Already Exists",
-                summary="Attempt to start without override",
-                value={"error": "Session already exists. Use override to force new session."},
-                response_only=True
-            )
-        ])
+        200: OpenApiResponse(
+            description="QR code path returned",
+            examples=[
+                OpenApiExample(
+                    name="Session Started",
+                    summary="Successful response",
+                    value={"qr_path": "/path/to/qr_code.png"},
+                    response_only=True
+                )
+            ],
+        ),
+        400: OpenApiResponse(
+            description="Session already exists or error occurred",
+            examples=[
+                OpenApiExample(
+                    name="Session Already Exists",
+                    summary="Attempt to start without override",
+                    value={"error": "Session already exists. Use override to force new session."},
+                    response_only=True
+                )
+            ],
+        ),
     },
     methods=["GET"],
-    tags=["LAN Session Manager"]
+    tags=["LAN Session Manager"],
 )
 @api_view(["GET"])
 def start_lan_session_view(request):
     allow_override = request.GET.get("override", "false").lower() == "true"
-    logger.info("Session Started with; override=%s", allow_override)
+    fill_color = request.GET.get("fill", "black")
+    back_color = request.GET.get("back", "white")
+    theme = request.GET.get("theme", "dark")
+    logger.info("Session Started with override=%s, fill=%s, back=%s, theme=%s", allow_override, fill_color, back_color, theme)
 
     try:
-        qr_path, _ = lan.initialize_session(allow_override=allow_override)
+        qr_path, _ = lan.initialize_session(
+            allow_override=allow_override,
+            fill_color=fill_color,
+            back_color=back_color,
+            theme=theme,
+        )
         logger.info("New LAN session initialized; qr_path=%s", qr_path)
         return Response({"qr_path": qr_path})
     except Exception as e:
