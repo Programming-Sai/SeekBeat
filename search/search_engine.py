@@ -1,3 +1,4 @@
+import json
 import random
 import yt_dlp
 import asyncio
@@ -8,7 +9,12 @@ import unicodedata
 from django.db.models import Q
 from config import IS_DESKTOP
 import logging
-from yt_dlp.utils import load_cookies_from_browser
+# from yt_dlp.cookies import extract_cookies_from_browser
+# from yt_dlp.YoutubeDL import _YDLLogger
+
+
+
+# from yt_dlp.utils import load_cookies_from_browser
 
 
 from desktop_lan_connect.models import DeviceProfile, SongProfile
@@ -20,6 +26,12 @@ logger = logging.getLogger('seekbeat')
 
 
 # https://www.youtube.com/shorts/5OU4sM47h6A?feature=share # TODO Youtube hacks
+
+
+# def get_cookies():
+#     with open(r"c:\\Users\\pc\\Desktop\\Projects\\SeekBeat\\cookies.json", "r") as f:
+#         data = json.load(f)   
+#         return data["cookies"]
 
 
 
@@ -41,7 +53,17 @@ class SearchEngine:
         """
         
 
-        cookies = load_cookies_from_browser('chrome', domain_name='youtube.com')
+        # try:
+        #     cookies = extract_cookies_from_browser(
+        #         browser_name="chrome",
+        #         profile="Mensah",
+        #         logger=_YDLLogger(),
+        #         domain_name="youtube.com"
+        #     )
+        # except Exception as e:
+        #     logger.error(f"Failed to load cookies from browser: {e}")
+        #     cookies = None
+
         # Default yt-dlp options optimized for fast, metadata-only searches
         self.SEARCH_YDL_OPTS = {
             "format": "bestaudio/best",    # Best audio quality
@@ -54,7 +76,8 @@ class SearchEngine:
             # "cachedir": False,               # Disable yt-dlp cache
             "no_warnings": True,             # Suppress warnings
             # "print_json": True,
-            "cookies": cookies,
+            # "cookies": "C:\\Users\\pc\\desktop\\cookies.txt",
+            # "cookies": cookies,
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36"
         }
 

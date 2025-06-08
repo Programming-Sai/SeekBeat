@@ -13,13 +13,18 @@ DEFAULT_HOST = "0.0.0.0"
 
 def color(text, fg="green"):
     colors = {
-        "green": "\033[92m",
-        "red": "\033[91m",
-        "yellow": "\033[93m",
-        "cyan": "\033[96m",
+        "black": "\033[30m",
+        "red": "\033[31m",
+        "green": "\033[32m",
+        "yellow": "\033[33m",
+        "blue": "\033[34m",
+        "magenta": "\033[35m",
+        "cyan": "\033[36m",
+        "white": "\033[37m",
         "reset": "\033[0m"
     }
-    return f"{colors.get(fg, '')}{text}{colors['reset']}"
+    return f"{colors.get(fg.lower(), '')}{text}{colors['reset']}"
+
 
 
 

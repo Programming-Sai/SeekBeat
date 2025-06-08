@@ -43,12 +43,8 @@ def get_or_create_secret_key(env_path=ENV_PATH):
 SECRET_KEY = get_or_create_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-# if DEBUG:
-    # ALLOWED_HOSTS = ["*"]
-# else:
-    # ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") + [get_local_ip()]
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") + [get_local_ip()]
 
 
