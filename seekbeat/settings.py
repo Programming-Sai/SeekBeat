@@ -12,22 +12,44 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
     
 import os
 from pathlib import Path
-from config import LOG_DIR
+from config import LOG_DIR, get_local_ip
+from django.core.management.utils import get_random_secret_key
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_PATH = BASE_DIR / ".env"
+
+
+def get_or_create_secret_key(env_path=ENV_PATH):
+    if env_path.exists():
+        lines = env_path.read_text().splitlines()
+        for line in lines:
+            if line.strip().startswith("DJANGO_SECRET_KEY="):
+                return line.split("=", 1)[1]
+
+    key = get_random_secret_key()
+    with env_path.open("a") as f:
+        f.write(f"\nDJANGO_SECRET_KEY={key}\n")
+    return key
+
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-xdt9!=rodx*qd9ki6yyb3j&djzmn6e(2xqj-xebl+n6f^ywbty'
+SECRET_KEY = get_or_create_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+# if DEBUG:
+    # ALLOWED_HOSTS = ["*"]
+# else:
+    # ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") + [get_local_ip()]
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") + [get_local_ip()]
 
 
 # Application definition
@@ -137,6 +159,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
 # Default primary key field type

@@ -3,30 +3,56 @@ import signal
 import socket
 import subprocess
 import sys
+import socket
+from config import get_local_ip
+
+
+DEFAULT_PORT_RANGE = (8000, 9000)
+DEFAULT_HOST = "0.0.0.0"
+
+
+def color(text, fg="green"):
+    colors = {
+        "green": "\033[92m",
+        "red": "\033[91m",
+        "yellow": "\033[93m",
+        "cyan": "\033[96m",
+        "reset": "\033[0m"
+    }
+    return f"{colors.get(fg, '')}{text}{colors['reset']}"
+
+
 
 def find_free_port(start=8000, end=9000):
-    for port in range(start, end+1):
+    for port in range(start, end + 1):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex(('localhost', port)) != 0:
+            if s.connect_ex(("localhost", port)) != 0:
                 return port
-    raise RuntimeError("No free port found in range.")
+    raise RuntimeError("❌ No free ports available.")
 
 
 def graceful_exit(signum, frame):
-    print("\n🛑 Server stopped by user (Ctrl+C or termination signal).")
+    print(color("\n🛑 Server stopped by user.", "red"))
     sys.exit(0)
 
+
+def start_server(host=DEFAULT_HOST):
+    port = find_free_port(*DEFAULT_PORT_RANGE)
+    os.environ["PORT"] = str(port)
+    local_ip = get_local_ip()
+    print(color(f"🚀 Starting server on http://{host}:{port}", "green"))
+    print(color(f"🚀 Access the app locally at http://localhost:{port}", "yellow"))
+    print(color(f"🚀 Access the app on LAN at http://{local_ip}:{port}", "cyan"))
+    subprocess.run([sys.executable, "manage.py", "runserver", f"{host}:{port}"])
+
+
 if __name__ == "__main__":
-    # Handle Ctrl+C or kill
     signal.signal(signal.SIGINT, graceful_exit)
     signal.signal(signal.SIGTERM, graceful_exit)
 
     try:
-        port = find_free_port()
-        os.environ["PORT"] = str(port)
-        print(f"✅ Starting server on port {port}...")
-        subprocess.run([sys.executable, "manage.py", "runserver", f"0.0.0.0:{port}"])
+        start_server()
     except KeyboardInterrupt:
-        print("\n🛑 Interrupted by user (KeyboardInterrupt). Exiting...")
+        print(color("\n🛑 Interrupted by user (KeyboardInterrupt).", "red"))
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(color(f"❌ Error: {e}", "red"))

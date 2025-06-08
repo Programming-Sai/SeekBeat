@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from platformdirs import user_data_dir
 from dotenv import load_dotenv
+import socket
+
 
 load_dotenv(override=True)  # Load .env
 
@@ -45,3 +47,18 @@ if IS_DEV:
     FFMPEG_DIR = DEV_ROOT / "SeekBeat" / "ffmpeg"
     LOG_DIR = DEV_ROOT / "SeekBeat" / "logs"
     LOG_FILE = LOG_DIR / "seekbeat.log"
+
+
+
+
+
+def get_local_ip():
+    try:
+        # Connect to an external host just to get the IP, doesn't send data
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "127.0.0.1"

@@ -6,8 +6,10 @@ import os
 import re
 import unicodedata
 from django.db.models import Q
-
+from config import IS_DESKTOP
 import logging
+from yt_dlp.utils import load_cookies_from_browser
+
 
 from desktop_lan_connect.models import DeviceProfile, SongProfile
 logger = logging.getLogger('seekbeat')
@@ -38,6 +40,8 @@ class SearchEngine:
                                      defaults to SEARCH_YDL_OPTS.
         """
         
+
+        cookies = load_cookies_from_browser('chrome', domain_name='youtube.com')
         # Default yt-dlp options optimized for fast, metadata-only searches
         self.SEARCH_YDL_OPTS = {
             "format": "bestaudio/best",    # Best audio quality
@@ -50,6 +54,7 @@ class SearchEngine:
             # "cachedir": False,               # Disable yt-dlp cache
             "no_warnings": True,             # Suppress warnings
             # "print_json": True,
+            "cookies": cookies,
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36"
         }
 
@@ -62,12 +67,12 @@ class SearchEngine:
         # Default maximum number of results per query
         self.max_results = 10
         self.retries = 5
-        self.max_concurrent_searches = 5
+        self.max_concurrent_searches = 2
         self._sem = asyncio.Semaphore(self.max_concurrent_searches)
         self.max_query_length = 500
-        self.max_bulk_search = 10
-        self.BULK_API_KEY=os.getenv('BULK_SEARCH_YOUTUBE_API_KEY')
-        self.NORMAL_API_KEY=os.getenv('NORMAL_SEARCH_YOUTUBE_API_KEY')
+        self.max_bulk_search = 5
+        self.BULK_API_KEY= None
+        self.NORMAL_API_KEY= None
 
 
     def _execute_search(self, query: str):
@@ -291,21 +296,24 @@ class SearchEngine:
 
         api_key = api_key or self.NORMAL_API_KEY
 
-        if not api_key:
-            raise ValueError("Youtube API key Not Provided, or is invalid.")
-
-        url = "https://www.googleapis.com/youtube/v3/search"
-        params = {
-            'part': 'snippet',
-            'maxResults': max_results,
-            'q': search_term,
-            'key': api_key,
-            'type': 'video',
-            'pageToken': page_token,
-        }
+        
 
 
         try:
+            if not api_key:
+                logger.warning("No API key provided; using yt-dlp fallback.")
+                raise ValueError("Youtube API key Not Provided, or is invalid.")
+
+            url = "https://www.googleapis.com/youtube/v3/search"
+            params = {
+                'part': 'snippet',
+                'maxResults': max_results,
+                'q': search_term,
+                'key': api_key,
+                'type': 'video',
+                'pageToken': page_token,
+            }
+
             response = await self._retry_request(url, params, search_term, retries=self.retries)
             # raise Exception("Simulated Exception to test yt-dlp Fall back") # Fall back caller for testing.
             data = response.json()
@@ -313,7 +321,7 @@ class SearchEngine:
         except Exception as e:
             logger.exception("Failed parsing JSON for term=%s", search_term)
             print(f"Youtube API failed after retries: {e}")
-            if bulk:
+            if bulk and not IS_DESKTOP:
                 logger.warning("Bulk fallback: aborting bulk for term=%s", search_term) 
                 raise Exception("Bulk Search API is currently unavailable. Try again later.")
             logger.info("Falling back to yt-dlp for term=%s", search_term)
