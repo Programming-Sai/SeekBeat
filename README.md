@@ -187,6 +187,44 @@ That “stacked” approach—Search → Stream/Edit → LAN share → Extension
 
 ---
 
+## 🛠 Building the Executable (Using the Spec File)
+
+To build the standalone `.exe` for the SeekBeat backend using the provided `SeekBeatServer.spec` file:
+
+### 🔧 Requirements
+
+- Python 3.12 installed
+- `PyInstaller` installed globally:
+
+```bash
+pip install pyinstaller
+```
+
+- All project dependencies (install them via `requirements.txt` or `pip freeze`)
+
+---
+
+### ⚙️ How to Build
+
+In the root of the project (same folder as `SeekBeatServer.spec`), run:
+
+```bash
+pyinstaller SeekBeatServer.spec
+```
+
+This will:
+
+- Use the provided `.spec` file to control how the executable is bundled.
+- Output a `SeekBeatServer.exe` file in the `dist/` folder.
+
+### ⚠️ Notes
+
+- This `.spec` file is tailored for the **desktop version**, using local static files, templates, `.env`, and the local SQLite DB.
+- Ensure you have a valid `.env` file before running the server.
+- If you see errors like `Failed to load Python DLL`, try running from **outside** the `dist/` folder and make sure all required DLLs are accessible.
+
+---
+
 ## 📂 What’s Next (Branches & Deployment)
 
 - **`main` branch (“dev” mode)**: All modules active—ideal for local development and feature expansion.
