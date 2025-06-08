@@ -62,6 +62,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'desktop_lan_connect',
     'chrome_extension',
+    'search',
+    'stream',
 ]
 
 MIDDLEWARE = [

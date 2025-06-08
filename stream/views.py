@@ -1,4 +1,4 @@
-# streaming/views.py
+# stream/views.py
 
 import json
 import logging
