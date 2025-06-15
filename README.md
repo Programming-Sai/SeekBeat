@@ -217,6 +217,29 @@ This will:
 - Use the provided `.spec` file to control how the executable is bundled.
 - Output a `SeekBeatServer.exe` file in the `dist/` folder.
 
+---
+
+## 🔐 API Key Configuration (New in v1.0.2)
+
+To use the `.exe` version of SeekBeatServer with **YouTube Data API support**, you must provide your own API keys.
+
+### 📁 File Structure Example
+
+Place the following files in the **same directory**:
+
+```ftt
+./<your working folder>/*
+        ├─ config/*
+        |       └─ api.key
+        └─ SeekBeatServer.exe
+
+```
+
+> [!IMPORTANT]
+> The folder name and sturcture must be exactly as is. the path to the api keys file should be exactly `config/api.key` and must be beside the .exe file. in dev mode, you can rename the [`example.api.key`](/config/example.api.key) to `api.key` and populate the skeleton in there, with just 2 youtube api keys or one, depending on which ever you want. however, without an api key for bulk search, bulk search would be disabled.
+
+---
+
 ### ⚠️ Notes
 
 - This `.spec` file is tailored for the **desktop version**, using local static files, templates, `.env`, and the local SQLite DB.

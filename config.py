@@ -5,6 +5,13 @@ from pathlib import Path
 from platformdirs import user_data_dir
 from dotenv import load_dotenv
 import socket
+import sys
+import os
+import logging
+logger = logging.getLogger('seekbeat')
+
+
+
 
 
 load_dotenv(override=True)  # Load .env
@@ -62,3 +69,43 @@ def get_local_ip():
         return local_ip
     except Exception:
         return "127.0.0.1"
+    
+
+
+def get_resource_path(relative_path: str) -> str:
+    """
+    Returns the absolute path to a file located next to the .exe when frozen,
+    or next to the script during development.
+    """
+    if getattr(sys, 'frozen', False):
+        # If bundled by PyInstaller
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # When running as a normal Python script
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_path, relative_path)
+
+
+
+
+
+def load_api_key(key_name: str) -> str | None:
+    path = get_resource_path("config/api.key")
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                # Skip empty lines and comments
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                
+                # Parse key=value format
+                if '=' in line:
+                    name, value = line.split('=', 1)
+                    if name.strip() == key_name:
+                        return value.strip()
+    except FileNotFoundError:
+        print("API key config file not found.")
+        logger.error("API key config file not found. for key:%s", key_name)
+    return None

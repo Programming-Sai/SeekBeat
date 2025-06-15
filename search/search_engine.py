@@ -7,14 +7,9 @@ import os
 import re
 import unicodedata
 from django.db.models import Q
-from config import IS_DESKTOP
+from config import IS_DESKTOP, load_api_key
 import logging
-# from yt_dlp.cookies import extract_cookies_from_browser
-# from yt_dlp.YoutubeDL import _YDLLogger
 
-
-
-# from yt_dlp.utils import load_cookies_from_browser
 
 
 from desktop_lan_connect.models import DeviceProfile, SongProfile
@@ -51,18 +46,6 @@ class SearchEngine:
             config (dict, optional): A dict of yt-dlp options. If None,
                                      defaults to SEARCH_YDL_OPTS.
         """
-        
-
-        # try:
-        #     cookies = extract_cookies_from_browser(
-        #         browser_name="chrome",
-        #         profile="Mensah",
-        #         logger=_YDLLogger(),
-        #         domain_name="youtube.com"
-        #     )
-        # except Exception as e:
-        #     logger.error(f"Failed to load cookies from browser: {e}")
-        #     cookies = None
 
         # Default yt-dlp options optimized for fast, metadata-only searches
         self.SEARCH_YDL_OPTS = {
@@ -81,6 +64,8 @@ class SearchEngine:
             "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.5993.118 Safari/537.36"
         }
 
+
+
         # Use provided config, or fall back to defaults 
         self.config = config if config else self.SEARCH_YDL_OPTS
 
@@ -94,8 +79,6 @@ class SearchEngine:
         self._sem = asyncio.Semaphore(self.max_concurrent_searches)
         self.max_query_length = 500
         self.max_bulk_search = 5
-        self.BULK_API_KEY= None
-        self.NORMAL_API_KEY= None
 
 
     def _execute_search(self, query: str):
@@ -105,6 +88,8 @@ class SearchEngine:
         return self.ydl.extract_info(query, download=False)
 
         
+    def get_api_keys_from_storage(self, key_name):
+        return load_api_key(key_name)
 
 
     async def regular_search(self, search_term: str, max_results: int = None, offset: int = None) -> list[dict] | dict:
@@ -317,9 +302,9 @@ class SearchEngine:
         elif search_term['type'] == 'search':
             search_term = search_term['query']
 
-        api_key = api_key or self.NORMAL_API_KEY
+        api_key = api_key or (self.get_api_keys_from_storage("NORMAL_API_KEY") if not bulk else self.get_api_keys_from_storage("BULK_API_KEY"))
 
-        
+
 
 
         try:
@@ -347,6 +332,8 @@ class SearchEngine:
             if bulk and not IS_DESKTOP:
                 logger.warning("Bulk fallback: aborting bulk for term=%s", search_term) 
                 raise Exception("Bulk Search API is currently unavailable. Try again later.")
+            if bulk and not api_key:
+                raise ValueError("Please provide an API key to enable bulk search.")
             logger.info("Falling back to yt-dlp for term=%s", search_term)
             return await self.regular_search(query)  # Fallback here
 
