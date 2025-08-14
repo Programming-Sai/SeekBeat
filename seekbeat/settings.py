@@ -66,6 +66,8 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500", # Would replace with frontend hosted link when it is hosted on vercel or expo hosting
     "http://localhost:5500",
+    "http://localhost:8081",
+    "https://seekbeat.expo.app"
 ]
 
 ROOT_URLCONF = 'seekbeat.urls'
