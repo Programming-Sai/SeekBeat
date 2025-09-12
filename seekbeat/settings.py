@@ -63,12 +63,9 @@ MIDDLEWARE = [
 ]
 
 # CORS_ALLOW_ALL_ORIGINS = True  # For testing; you can specify origins like:
-# CORS_ALLOWED_ORIGINS = [
-#     "http://127.0.0.1:5500", # Would replace with frontend hosted link when it is hosted on vercel or expo hosting
-#     "http://localhost:5500",
-# ]
 
 CORS_ALLOW_ALL_ORIGINS = True
+
 
 
 ROOT_URLCONF = 'seekbeat.urls'
