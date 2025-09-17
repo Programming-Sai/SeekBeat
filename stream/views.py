@@ -1,6 +1,7 @@
 # stream/views.py
 
 import json
+import requests
 import logging
 from django.http import StreamingHttpResponse, JsonResponse
 from rest_framework.decorators import api_view
@@ -26,6 +27,58 @@ logger.debug("Testing log output")
 
 
 engine = StreamingEngine()
+
+
+def proxy_stream_response(request, upstream_url, chunk_size=8192, timeout=30):
+    """
+    Proxy an upstream media URL to the client.
+    - forwards incoming Range header to upstream
+    - returns chunks from upstream iter_content to client
+    - copies back key headers so browser can seek
+    """
+    # Only allow upstream_url coming from your engine.extract_stream_url result (call-site must enforce)
+    headers = {}
+    incoming_range = request.headers.get("Range")
+    if incoming_range:
+        headers["Range"] = incoming_range
+
+    # Some upstreams require a browser-like user agent
+    headers["User-Agent"] = request.headers.get("User-Agent", "Mozilla/5.0 (SeekBeat)")
+
+    try:
+        upstream_resp = requests.get(upstream_url, headers=headers, stream=True, timeout=timeout, allow_redirects=True)
+    except requests.RequestException as e:
+        logger.exception("Upstream fetch failed: %s", e)
+        return JsonResponse({"error": "Failed to fetch remote stream"}, status=502)
+
+    # Acceptable upstream statuses are 200 and 206 (partial). Other codes: pass through 200 as fallback.
+    status_code = upstream_resp.status_code if upstream_resp.status_code in (200, 206) else 200
+
+    def gen():
+        try:
+            for chunk in upstream_resp.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    yield chunk
+        finally:
+            try:
+                upstream_resp.close()
+            except Exception:
+                pass
+
+    content_type = upstream_resp.headers.get("Content-Type", "audio/mpeg")
+    resp = StreamingHttpResponse(gen(), status=status_code, content_type=content_type)
+
+    # Copy helpful headers for browser seeking
+    for h in ("Content-Length", "Accept-Ranges", "Content-Range", "Cache-Control", "Content-Type"):
+        v = upstream_resp.headers.get(h)
+        if v:
+            resp[h] = v
+
+    # Make sure browsers treat it as inline playable media
+    resp["Content-Disposition"] = 'inline; filename="stream"'
+
+    return resp
+
 
 
 @extend_schema(
@@ -97,7 +150,6 @@ engine = StreamingEngine()
 )
 @api_view(["GET", "POST"])
 @ratelimit(key='ip', rate='30/m', block=True)
-
 def stream_url_view(request, video_url):
     if not video_url:
         logger.warning("Missing video URL in path")
@@ -106,14 +158,25 @@ def stream_url_view(request, video_url):
 
     if request.method == "GET":
         logger.info("Stream request from %s for video_url=%s", request.META.get("REMOTE_ADDR"), video_url)
-
+        print(request.META.get("REMOTE_ADDR"))
         try:
             if engine.is_youtube_id(video_url):
                 full_url = f"https://www.youtube.com/watch?v={video_url}"
-                data = engine.extract_stream_url(full_url)
+                data = engine.extract_stream_url(full_url)  # {stream_url, title, duration, ...}
+
+                # If the client wants only metadata, they can call without ?stream=1
+                # If you want GET to always stream like POST, remove the proxy check and just return proxy_stream_response(...)
+                if request.GET.get("stream", "0") in ("1", "true", "yes"):
+                    upstream = data.get("stream_url")
+                    if not upstream:
+                        return Response({"error": "no upstream stream url"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return proxy_stream_response(request, upstream)
+
+                # Default: return metadata JSON (backwards compatible)
                 logger.info("Stream URL extracted successfully for %s", video_url)
                 return Response(data, status=status.HTTP_200_OK)
             else:
+                # local file: remain unchanged (range_file_response already supports Range requests)
                 SongManager.verify_access(request.headers.get("Access-Code"))
                 input_src, _, _ = engine.get_song_by_id(video_url)
                 logger.info("Found song locally for %s at %s", video_url, input_src)

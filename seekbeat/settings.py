@@ -14,6 +14,8 @@ import os
 from pathlib import Path
 from config import LOG_DIR, get_local_ip
 from django.core.management.utils import get_random_secret_key
+from corsheaders.defaults import default_headers
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = BASE_DIR / ".env"
@@ -45,8 +47,16 @@ SECRET_KEY = get_or_create_secret_key()
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") + [get_local_ip()]
+ngrok_patterns = [".ngrok.io", ".ngrok-free.app", "*"]
 
+
+ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") + [get_local_ip()] + ngrok_patterns
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://fc3e9f335ac4.ngrok-free.app"
+]
 
 # Application definition
 
@@ -79,13 +89,20 @@ MIDDLEWARE = [
 ]
 
 # CORS_ALLOW_ALL_ORIGINS = True  # For testing; you can specify origins like:
-CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5500",
-    "http://localhost:5500",
-    "http://localhost:8081",
-    "http://127.0.0.1:8081",
-    "https://seekbeat.expo.app",
-]  
+# CORS_ALLOWED_ORIGINS = [
+#     "http://127.0.0.1:5500",
+#     "http://localhost:5500",
+#     "http://localhost:8081",
+#     "http://127.0.0.1:8081",
+#     "https://seekbeat.expo.app",
+# ]  
+
+CORS_ALLOW_ALL_ORIGINS = True  # keep for dev; tighten in prod
+
+# Allow the special ngrok bypass header in preflight
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "ngrok-skip-browser-warning",
+]
 
 ROOT_URLCONF = 'seekbeat.urls'
 
