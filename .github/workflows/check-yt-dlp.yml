@@ -36,7 +36,7 @@ jobs:
         id: local
         run: |
           if [ -f requirements.txt ]; then
-            version=$(grep -E '^\s*yt-dlp\s*(==|>=|<=)' requirements.txt 2>/dev/null | head -n1 | sed -E 's/^[[:space:]]*yt-dlp(==|>=|<=)//')
+            version=$(grep -E '^[[:space:]]*yt-dlp[[:space:]]*(==|>=|<=)[[:space:]]*' requirements.txt 2>/dev/null | head -n1 | sed -E 's/^[[:space:]]*yt-dlp[[:space:]]*(==|>=|<=)[[:space:]]*//')
             if [ -z "$version" ]; then
               version="none"
             fi
@@ -44,6 +44,7 @@ jobs:
             version="none"
           fi
           echo "local_version=$version" >> $GITHUB_OUTPUT
+          echo "Detected local yt-dlp version: $version"
           echo "local_version=$version"
 
       - name: Get latest yt-dlp version from PyPI
