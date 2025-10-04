@@ -44,17 +44,23 @@ jobs:
         id: read_local
         shell: pwsh
         run: |
-          if (Test-Path "requirements.txt") {
-            $line = Get-Content "requirements.txt" | Select-String -Pattern '^\s*yt-dlp\s*(==|>=|<=)' | Select-Object -First 1
-            if ($line) {
-              $v = ($line -replace '^\s*yt-dlp(==|>=|<=)\s*','').Trim()
+          $filePath = "requirements.txt"
+          $pattern = '^\s*yt-dlp\s*(==|>=|<=)\s*([^\s#;]+)'
+
+          if (Test-Path $filePath) {
+            $content = Get-Content -Raw $filePath
+            $match = [regex]::Match($content, $pattern)
+            if ($match.Success) {
+              $v = $match.Groups[2].Value.Trim()
             } else {
-              $v = 'none'
+              $v = "none"
             }
           } else {
-            $v = 'none'
+            $v = "none"
           }
-          "local_yt_dlp=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          Write-Host "Detected yt-dlp version: $v"
+          echo "local_yt_dlp=$v" >> $env:GITHUB_OUTPUT
 
       - name: Check yt-dlp version difference
         id: check_version
