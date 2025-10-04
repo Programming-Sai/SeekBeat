@@ -43,8 +43,8 @@ jobs:
         id: read_local
         shell: pwsh
         run: |
-          if (Test-Path requirements.txt) {
-            $line = Get-Content requirements.txt | Select-String -Pattern '^\s*yt-dlp\s*(==|>=|<=)' | Select-Object -First 1
+          if (Test-Path "requirements.txt") {
+            $line = Get-Content "requirements.txt" | Select-String -Pattern '^\s*yt-dlp\s*(==|>=|<=)' | Select-Object -First 1
             if ($line) {
               $v = ($line -replace '^\s*yt-dlp(==|>=|<=)\s*','').Trim()
             } else {
@@ -53,7 +53,8 @@ jobs:
           } else {
             $v = 'none'
           }
-          echo "local_yt_dlp=$v" >> $env:GITHUB_OUTPUT
+          # Use Out-File for GitHub Actions output correctly
+          "local_yt_dlp=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: (Optional) Bump yt-dlp in requirements.txt
         if: ${{ inputs.bump_yt_dlp == 'true' }}
