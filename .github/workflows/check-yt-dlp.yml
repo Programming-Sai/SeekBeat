@@ -1,10 +1,10 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow
 name: Check yt-dlp Version
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # midnight UTC
+    - cron: "0 0 * * *" # midnight UTC
   workflow_dispatch:
-  
   push:
     branches:
       - desktop
@@ -21,7 +21,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python (for pip if needed)
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -32,9 +32,11 @@ jobs:
       - name: Get current yt-dlp version from requirements.txt
         id: local
         run: |
-          # fallback to "none" if not present
           if [ -f requirements.txt ]; then
-            version=$(grep -E '^\s*yt-dlp\s*(==|>=|<=)' requirements.txt 2>/dev/null | head -n1 | sed -E 's/^[[:space:]]*yt-dlp(==|>=|<=)//' || echo "none")
+            version=$(grep -E '^\s*yt-dlp\s*(==|>=|<=)' requirements.txt 2>/dev/null | head -n1 | sed -E 's/^[[:space:]]*yt-dlp(==|>=|<=)//')
+            if [ -z "$version" ]; then
+              version="none"
+            fi
           else
             version="none"
           fi
@@ -61,47 +63,50 @@ jobs:
             echo "✅ yt-dlp is up to date."
           fi
 
-      - name: Create Issue when update available (avoid duplicate)
+      - name: Create or comment on issue when update available (avoid duplicate)
         if: steps.compare.outputs.update_needed == 'true'
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const title = `yt-dlp update available: ${process.env.LATEST_VER}`;
-            // fetch open issues labeled dependency-update or yt-dlp
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const title = 'yt-dlp update available: ' + process.env.LATEST_VER;
+
+            // fetch first 100 open issues
             const { data: issues } = await github.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              per_page: 100
+              owner, repo, state: 'open', per_page: 100
             });
-            // find same-title issue with labels
+
+            // find any open issue with the same title and expected labels
             const found = issues.find(i =>
               i.title === title &&
-              i.labels.some(l => ["dependency-update","yt-dlp"].includes(l.name))
+              i.labels.some(l => ['dependency-update','yt-dlp'].includes(l.name))
             );
-            if (found) {
-              console.log("An open issue already exists for this update — commenting instead.");
-              await github.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: found.number,
-                body: `Checked again at ${new Date().toISOString()}. yt-dlp ${process.env.LATEST_VER} is still available.`
-              });
-            } else {
-              await github.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title,
-                body: `A new version of **yt-dlp** is available on PyPI.
-                
-- Current in requirements.txt: **${process.env.LOCAL_VER}**
-- Latest on PyPI: **${process.env.LATEST_VER}**
 
-Trigger the manual Rebuild & Release workflow when you're ready.
-`,
-                labels: ["dependency-update","yt-dlp"]
+            if (found) {
+              await github.issues.createComment({
+                owner, repo,
+                issue_number: found.number,
+                body: 'Checked again at ' + new Date().toISOString() + '. yt-dlp ' + process.env.LATEST_VER + ' still available.'
               });
+              console.log('Found existing issue #' + found.number + ' — commented.');
+            } else {
+              const bodyLines = [
+                'A new version of **yt-dlp** is available on PyPI.',
+                '',
+                '- Current in requirements.txt: **' + process.env.LOCAL_VER + '**',
+                '- Latest on PyPI: **' + process.env.LATEST_VER + '**',
+                '',
+                'Trigger the manual Rebuild & Release workflow when you are ready.'
+              ];
+              await github.issues.create({
+                owner, repo,
+                title,
+                body: bodyLines.join('\n'),
+                labels: ['dependency-update','yt-dlp']
+              });
+              console.log('Created new issue for update ' + process.env.LATEST_VER);
             }
         env:
           LOCAL_VER: ${{ steps.local.outputs.local_version }}
@@ -113,35 +118,30 @@ Trigger the manual Rebuild & Release workflow when you're ready.
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const logTitle = "yt-dlp check log";
-            const body = `No update needed at ${new Date().toISOString()}.
-- Local: ${process.env.LOCAL_VER}
-- Latest: ${process.env.LATEST_VER}
-`;
-            // list issues with label yt-dlp-check-log to find the persistent log issue
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const logTitle = 'yt-dlp check log';
+            const body = 'No update needed at ' + new Date().toISOString() + '.\n- Local: ' + process.env.LOCAL_VER + '\n- Latest: ' + process.env.LATEST_VER;
+
+            // find open issues labeled yt-dlp-check-log (first 100)
             const { data: issues } = await github.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              labels: "yt-dlp-check-log",
-              per_page: 100
+              owner, repo, state: 'open', labels: 'yt-dlp-check-log', per_page: 100
             });
 
             let found = issues.find(i => i.title === logTitle);
             if (!found) {
               const created = await github.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner, repo,
                 title: logTitle,
-                body: "This issue is used to collect yt-dlp nightly check comments. It is created by the workflow.",
-                labels: ["yt-dlp-check-log"]
+                body: 'This issue is used to collect yt-dlp nightly check comments. It is created by the workflow.',
+                labels: ['yt-dlp-check-log']
               });
               found = created.data;
+              console.log('Created persistent log issue #' + found.number);
             }
 
             await github.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner, repo,
               issue_number: found.number,
               body
             });
