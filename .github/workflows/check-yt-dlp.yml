@@ -1,5 +1,8 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow
 name: Check yt-dlp Version
+
+permissions:
+  contents: read
+  issues: write
 
 on:
   schedule:
