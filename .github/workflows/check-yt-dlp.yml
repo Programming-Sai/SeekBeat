@@ -44,6 +44,7 @@ jobs:
             version="none"
           fi
           echo "local_version=$version" >> $GITHUB_OUTPUT
+          echo "local_version=$version"
 
       - name: Get latest yt-dlp version from PyPI
         id: remote
