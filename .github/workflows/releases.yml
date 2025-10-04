@@ -1,0 +1,220 @@
+name: Rebuild and Release Seekbeat
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_override:
+        description: "Optional: force release tag (e.g. v1.2.3). If empty the workflow will auto-bump patch."
+        required: false
+        default: ""
+      bump_yt_dlp:
+        description: "If true: update requirements.txt to the latest yt-dlp version before building"
+        required: false
+        default: "false"
+      auto_commit:
+        description: "If true: commit and push updated requirements.txt after bumping"
+        required: false
+        default: "true"
+      close_issues:
+        description: "If true: close open yt-dlp dependency issues after release"
+        required: false
+        default: "true"
+
+  push:
+    branches:
+      - desktop
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout repo (with write permissions)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Read current yt-dlp version from requirements.txt
+        id: read_local
+        shell: pwsh
+        run: |
+          if (Test-Path requirements.txt) {
+            $line = Get-Content requirements.txt | Select-String -Pattern '^\s*yt-dlp\s*(==|>=|<=)' | Select-Object -First 1
+            if ($line) {
+              $v = ($line -replace '^\s*yt-dlp(==|>=|<=)\s*','').Trim()
+            } else {
+              $v = 'none'
+            }
+          } else {
+            $v = 'none'
+          }
+          echo "local_yt_dlp=$v" >> $env:GITHUB_OUTPUT
+
+      - name: (Optional) Bump yt-dlp in requirements.txt
+        if: ${{ inputs.bump_yt_dlp == 'true' }}
+        id: bump
+        shell: pwsh
+        run: |
+          $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
+          $content = Get-Content requirements.txt -Raw
+          if ($content -match '^\s*yt-dlp\s*(==|>=|<=)') {
+            $new = ($content -replace '^\s*yt-dlp\s*(==|>=|<=)\s*.*','yt-dlp==' + $latest)
+          } else {
+            $new = $content + "`nyt-dlp==$latest`n"
+          }
+          if ($content -ne $new) {
+            $new | Set-Content requirements.txt -Force
+            Write-Host "Bumped yt-dlp to $latest"
+            echo "bumped=true" >> $env:GITHUB_OUTPUT
+            echo "new_yt_dlp=$latest" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "No changes required (already at $latest or not found)."
+            echo "bumped=false" >> $env:GITHUB_OUTPUT
+            echo "new_yt_dlp=$latest" >> $env:GITHUB_OUTPUT
+
+      - name: Install dependencies (including pyinstaller)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Run PyInstaller with spec
+        shell: pwsh
+        run: |
+          # run in repo root with your spec
+          pyinstaller SeekBeatServer.spec
+
+      - name: Find built exe (first .exe under dist) and copy to artifacts folder
+        id: findexe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { Write-Error "No .exe found under dist/"; exit 1 }
+          New-Item -ItemType Directory -Path release_artifacts -Force | Out-Null
+          $dest = Join-Path -Path "release_artifacts" -ChildPath "SeekBeatServer.exe"
+          Copy-Item $exe.FullName -Destination $dest -Force
+          Write-Host "artifact_path=$dest"
+          echo "artifact_path=$dest" >> $env:GITHUB_OUTPUT
+
+      - name: Determine release tag (auto-bump patch or use override)
+        id: determine_tag
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const override = process.env.TAG_OVERRIDE || '';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            if (override && override.trim().length > 0) {
+              core.setOutput('tag', override.trim());
+              core.setOutput('name', override.trim());
+              return;
+            }
+
+            // fetch releases and tags
+            const releases = await github.repos.listReleases({ owner, repo, per_page: 100 });
+            // find latest semver-style tag matching vMAJOR.MINOR.PATCH
+            const semverRegex = /^v(\d+)\.(\d+)\.(\d+)$/;
+            let max = { major:0, minor:0, patch:0, tag: null };
+            for (const r of releases.data) {
+              const t = r.tag_name;
+              const m = semverRegex.exec(t);
+              if (m) {
+                const maj = parseInt(m[1],10);
+                const min = parseInt(m[2],10);
+                const pat = parseInt(m[3],10);
+                if (maj > max.major || (maj===max.major && min>max.minor) || (maj===max.major && min===max.minor && pat>max.patch)) {
+                  max = { major: maj, minor: min, patch: pat, tag: t };
+                }
+              }
+            }
+
+            // if no semver tag found, start at v1.0.0
+            if (!max.tag) {
+              const newTag = 'v1.0.0';
+              core.setOutput('tag', newTag);
+              core.setOutput('name', newTag);
+              return;
+            }
+
+            const newPatch = max.patch + 1;
+            const newTag = `v${max.major}.${max.minor}.${newPatch}`;
+            core.setOutput('tag', newTag);
+            core.setOutput('name', newTag);
+        env:
+          TAG_OVERRIDE: ${{ inputs.tag_override }}
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.determine_tag.outputs.tag }}
+          release_name: ${{ steps.determine_tag.outputs.name }}
+          body: |
+            Automated rebuild of SeekBeatServer triggered by ${{ github.actor }}
+            - Bumped yt-dlp during build: ${{ steps.bump.outputs.bumped || 'false' }}
+            - Old yt-dlp (requirements.txt before run): ${{ steps.read_local.outputs.local_yt_dlp }}
+            - New yt-dlp (if bumped): ${{ steps.bump.outputs.new_yt_dlp || steps.read_local.outputs.local_yt_dlp }}
+            - Built on runner: windows-latest
+          draft: false
+          prerelease: false
+
+      - name: Upload release asset (SeekBeatServer.exe)
+        id: upload_asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release_artifacts/SeekBeatServer.exe
+          asset_name: SeekBeatServer.exe
+          asset_content_type: application/octet-stream
+
+      - name: Commit requirements.txt back to repo (optional)
+        if: ${{ inputs.bump_yt_dlp == 'true' && inputs.auto_commit == 'true' && steps.bump.outputs.bumped == 'true' }}
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add requirements.txt
+          git commit -m "chore: bump yt-dlp to latest (automated by release workflow)" || Write-Host "no changes to commit"
+          # push to same branch the workflow was run from
+          $branch = "${{ github.ref_name }}"
+          git push origin HEAD:$branch
+
+      - name: Close open dependency-update issues (optional)
+        if: ${{ inputs.close_issues == 'true' }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: issues } = await github.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "dependency-update,yt-dlp"
+            });
+            for (const i of issues) {
+              await github.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: i.number,
+                body: `Closed by automatic rebuild/release performed by ${context.actor}.`
+              });
+              await github.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: i.number,
+                state: "closed"
+              });
+            }
