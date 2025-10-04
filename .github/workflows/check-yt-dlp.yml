@@ -157,7 +157,7 @@ jobs:
               console.log('Created persistent log issue #' + found.number);
             }
 
-            await github.issues.createComment({
+            await github.rest.issues.createComment({
               owner, repo,
               issue_number: found.number,
               body
