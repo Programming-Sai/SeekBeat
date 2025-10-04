@@ -74,7 +74,7 @@ jobs:
             const title = 'yt-dlp update available: ' + process.env.LATEST_VER;
 
             // fetch first 100 open issues
-            const { data: issues } = await github.issues.listForRepo({
+            const { data: issues } = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', per_page: 100
             });
 
@@ -85,7 +85,7 @@ jobs:
             );
 
             if (found) {
-              await github.issues.createComment({
+              await github.rest.issues.createComment({
                 owner, repo,
                 issue_number: found.number,
                 body: 'Checked again at ' + new Date().toISOString() + '. yt-dlp ' + process.env.LATEST_VER + ' still available.'
@@ -100,7 +100,7 @@ jobs:
                 '',
                 'Trigger the manual Rebuild & Release workflow when you are ready.'
               ];
-              await github.issues.create({
+              await github.rest.issues.create({
                 owner, repo,
                 title,
                 body: bodyLines.join('\n'),
@@ -124,13 +124,13 @@ jobs:
             const body = 'No update needed at ' + new Date().toISOString() + '.\n- Local: ' + process.env.LOCAL_VER + '\n- Latest: ' + process.env.LATEST_VER;
 
             // find open issues labeled yt-dlp-check-log (first 100)
-            const { data: issues } = await github.issues.listForRepo({
+            const { data: issues } = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', labels: 'yt-dlp-check-log', per_page: 100
             });
 
             let found = issues.find(i => i.title === logTitle);
             if (!found) {
-              const created = await github.issues.create({
+              const created = await github.rest.issues.create({
                 owner, repo,
                 title: logTitle,
                 body: 'This issue is used to collect yt-dlp nightly check comments. It is created by the workflow.',
