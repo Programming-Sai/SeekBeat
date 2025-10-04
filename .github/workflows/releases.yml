@@ -27,6 +27,7 @@ jobs:
     permissions:
       contents: write
       issues: write
+
     steps:
       - name: Checkout repo (with write permissions)
         uses: actions/checkout@v4
@@ -53,30 +54,61 @@ jobs:
           } else {
             $v = 'none'
           }
-          # Use Out-File for GitHub Actions output correctly
           "local_yt_dlp=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Check yt-dlp version difference
+        id: check_version
+        shell: pwsh
+        run: |
+          $local = "${{ steps.read_local.outputs.local_yt_dlp }}"
+          $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
+
+          Write-Host "Local:  $local"
+          Write-Host "Latest: $latest"
+
+          if ($local -ne $latest) {
+            Write-Host "::warning::yt-dlp update available: $local → $latest"
+            "update_needed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "latest_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          } else {
+            Write-Host "✅ yt-dlp is up to date."
+            "update_needed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "latest_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
 
       - name: (Optional) Bump yt-dlp in requirements.txt
         if: ${{ inputs.bump_yt_dlp == 'true' }}
         id: bump
         shell: pwsh
         run: |
-          $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
-          $content = Get-Content requirements.txt -Raw
-          if ($content -match '^\s*yt-dlp\s*(==|>=|<=)') {
-            $new = ($content -replace '^\s*yt-dlp\s*(==|>=|<=)\s*.*','yt-dlp==' + $latest)
-          } else {
-            $new = $content + "`nyt-dlp==$latest`n"
+          $latest = "${{ steps.check_version.outputs.latest_yt_dlp }}"
+          if (-not $latest) {
+            $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
           }
-          if ($content -ne $new) {
-            $new | Set-Content requirements.txt -Force
-            Write-Host "Bumped yt-dlp to $latest"
-            echo "bumped=true" >> $env:GITHUB_OUTPUT
-            echo "new_yt_dlp=$latest" >> $env:GITHUB_OUTPUT
+
+          if (Test-Path "requirements.txt") {
+            $content = Get-Content requirements.txt -Raw
+            if ($content -match '^\s*yt-dlp\s*(==|>=|<=)') {
+              $new = ($content -replace '^\s*yt-dlp\s*(==|>=|<=)\s*.*', "yt-dlp==$latest")
+            } else {
+              $new = $content + "`nyt-dlp==$latest`n"
+            }
+            if ($content -ne $new) {
+              $new | Set-Content requirements.txt -Force
+              Write-Host "Bumped yt-dlp to $latest"
+              "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+              "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            } else {
+              Write-Host "No changes required (already at $latest or not found)."
+              "bumped=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+              "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            }
           } else {
-            Write-Host "No changes required (already at $latest or not found)."
-            echo "bumped=false" >> $env:GITHUB_OUTPUT
-            echo "new_yt_dlp=$latest" >> $env:GITHUB_OUTPUT
+            Write-Host "requirements.txt not found — creating one."
+            "yt-dlp==$latest" | Out-File -FilePath requirements.txt -Encoding utf8 -Force
+            "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
 
       - name: Install dependencies (including pyinstaller)
         shell: pwsh
@@ -88,7 +120,6 @@ jobs:
       - name: Run PyInstaller with spec
         shell: pwsh
         run: |
-          # run in repo root with your spec
           pyinstaller SeekBeatServer.spec
 
       - name: Find built exe (first .exe under dist) and copy to artifacts folder
@@ -101,7 +132,7 @@ jobs:
           $dest = Join-Path -Path "release_artifacts" -ChildPath "SeekBeatServer.exe"
           Copy-Item $exe.FullName -Destination $dest -Force
           Write-Host "artifact_path=$dest"
-          echo "artifact_path=$dest" >> $env:GITHUB_OUTPUT
+          "artifact_path=$dest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Determine release tag (auto-bump patch or use override)
         id: determine_tag
@@ -119,11 +150,9 @@ jobs:
               return;
             }
 
-            // fetch releases and tags
             const releases = await github.repos.listReleases({ owner, repo, per_page: 100 });
-            // find latest semver-style tag matching vMAJOR.MINOR.PATCH
             const semverRegex = /^v(\d+)\.(\d+)\.(\d+)$/;
-            let max = { major:0, minor:0, patch:0, tag: null };
+            let max = { major:0, minor:0, patch:0, tag:null };
             for (const r of releases.data) {
               const t = r.tag_name;
               const m = semverRegex.exec(t);
@@ -137,7 +166,6 @@ jobs:
               }
             }
 
-            // if no semver tag found, start at v1.0.0
             if (!max.tag) {
               const newTag = 'v1.0.0';
               core.setOutput('tag', newTag);
@@ -163,8 +191,8 @@ jobs:
           body: |
             Automated rebuild of SeekBeatServer triggered by ${{ github.actor }}
             - Bumped yt-dlp during build: ${{ steps.bump.outputs.bumped || 'false' }}
-            - Old yt-dlp (requirements.txt before run): ${{ steps.read_local.outputs.local_yt_dlp }}
-            - New yt-dlp (if bumped): ${{ steps.bump.outputs.new_yt_dlp || steps.read_local.outputs.local_yt_dlp }}
+            - Old yt-dlp: ${{ steps.read_local.outputs.local_yt_dlp }}
+            - New yt-dlp: ${{ steps.bump.outputs.new_yt_dlp || steps.read_local.outputs.local_yt_dlp }}
             - Built on runner: windows-latest
           draft: false
           prerelease: false
@@ -186,7 +214,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add requirements.txt
           git commit -m "chore: bump yt-dlp to latest (automated by release workflow)" || Write-Host "no changes to commit"
-          # push to same branch the workflow was run from
           $branch = "${{ github.ref_name }}"
           git push origin HEAD:$branch
 
