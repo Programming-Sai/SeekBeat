@@ -32,19 +32,26 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Normalize encoding of requirements.txt
+        if: ${{ hashFiles('requirements.txt') != '' }}
+        run: |
+          file -i requirements.txt
+          iconv -f utf-16 -t utf-8 requirements.txt -o requirements.txt.utf8 || cp requirements.txt requirements.txt.utf8
+          mv requirements.txt.utf8 requirements.txt
+
       - name: Get current yt-dlp version from requirements.txt
         id: local
         run: |
           if [ -f requirements.txt ]; then
-            version=$(grep -E '^[[:space:]]*yt-dlp[[:space:]]*(==|>=|<=)[[:space:]]*' requirements.txt 2>/dev/null | head -n1 | sed -E 's/^[[:space:]]*yt-dlp[[:space:]]*(==|>=|<=)[[:space:]]*//')
+            version=$(awk -F'==' '/^[[:space:]]*yt-dlp/ {gsub(/\r/,"",$2); print $2; exit}' requirements.txt)
             if [ -z "$version" ]; then
               version="none"
             fi
           else
             version="none"
           fi
-          echo "local_version=$version" >> $GITHUB_OUTPUT
           echo "Detected local yt-dlp version: $version"
+          echo "local_version=$version" >> $GITHUB_OUTPUT
           echo "local_version=$version"
 
       - name: Debug requirements.txt
