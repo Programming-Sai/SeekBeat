@@ -47,6 +47,11 @@ jobs:
           echo "Detected local yt-dlp version: $version"
           echo "local_version=$version"
 
+      - name: Debug requirements.txt
+        run: |
+          echo "File contents:"
+          cat -A requirements.txt
+
       - name: Get latest yt-dlp version from PyPI
         id: remote
         run: |
