@@ -4,21 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       tag_override:
-        description: "Optional: force release tag (e.g. v1.2.3). If empty the workflow will auto-bump patch."
+        description: "Optional: force release tag (e.g. v1.2.3)"
         required: false
         default: ""
       bump_yt_dlp:
-        description: "If true: update requirements.txt to the latest yt-dlp version before building"
+        description: "Update yt-dlp to latest version before building"
         required: false
-        default: "false"
+        default: false
+        type: boolean
       auto_commit:
-        description: "If true: commit and push updated requirements.txt after bumping"
+        description: "Commit updated requirements.txt after bumping"
         required: false
-        default: "true"
-      close_issues:
-        description: "If true: close open yt-dlp dependency issues after release"
-        required: false
-        default: "true"
+        default: true
+        type: boolean
 
 jobs:
   build-and-release:
@@ -29,7 +27,7 @@ jobs:
       issues: write
 
     steps:
-      - name: Checkout repo (with write permissions)
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           persist-credentials: true
@@ -40,212 +38,124 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Read current yt-dlp version from requirements.txt
+      - name: Read current yt-dlp version
         id: read_local
         shell: pwsh
         run: |
-          $filePath = "requirements.txt"
-          $pattern = '^\s*yt-dlp\s*(==|>=|<=)\s*([^\s#;]+)'
-
-          if (Test-Path $filePath) {
-            $content = Get-Content -Raw $filePath
-            $match = [regex]::Match($content, $pattern)
-            if ($match.Success) {
-              $v = $match.Groups[2].Value.Trim()
-            } else {
-              $v = "none"
+          $version = "none"
+          if (Test-Path "requirements.txt") {
+            $content = Get-Content "requirements.txt" -Raw
+            if ($content -match '(?m)^yt-dlp\s*(?:==|>=|<=)\s*([^\s;#]+)') {
+              $version = $Matches[1]
             }
-          } else {
-            $v = "none"
           }
+          Write-Host "Current yt-dlp version: $version"
+          echo "local_yt_dlp=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-          Write-Host "Detected yt-dlp version: $v"
-          echo "local_yt_dlp=$v" >> $env:GITHUB_OUTPUT
-
-      - name: Check yt-dlp version difference
+      - name: Check for yt-dlp update
         id: check_version
         shell: pwsh
         run: |
           $local = "${{ steps.read_local.outputs.local_yt_dlp }}"
           $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
 
-          Write-Host "Local:  $local"
+          Write-Host "Local: $local"
           Write-Host "Latest: $latest"
 
-          if ($local -ne $latest) {
-            Write-Host "::warning::yt-dlp update available: $local → $latest"
-            "update_needed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "latest_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          echo "latest_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          if ($local -ne "none" -and $local -ne $latest) {
+            Write-Host "::warning::Update available: $local → $latest"
+            echo "update_needed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           } else {
-            Write-Host "✅ yt-dlp is up to date."
-            "update_needed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "latest_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            echo "update_needed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           }
 
-      - name: (Optional) Bump yt-dlp in requirements.txt
+      - name: Bump yt-dlp if requested
         if: ${{ inputs.bump_yt_dlp == 'true' }}
         id: bump
         shell: pwsh
         run: |
           $latest = "${{ steps.check_version.outputs.latest_yt_dlp }}"
-          if (-not $latest) {
-            $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
-          }
 
           if (Test-Path "requirements.txt") {
-            $content = Get-Content requirements.txt -Raw
-            if ($content -match '^\s*yt-dlp\s*(==|>=|<=)') {
-              $new = ($content -replace '^\s*yt-dlp\s*(==|>=|<=)\s*.*', "yt-dlp==$latest")
+            $content = Get-Content "requirements.txt" -Raw
+            if ($content -match 'yt-dlp\s*(?:==|>=|<=)\s*[^\s;#]+') {
+              $newContent = $content -replace '(yt-dlp\s*(?:==|>=|<=)\s*)[^\s;#]+', "`$1$latest"
             } else {
-              $new = $content + "`nyt-dlp==$latest`n"
+              $newContent = $content + "`nyt-dlp==$latest`n"
             }
-            if ($content -ne $new) {
-              $new | Set-Content requirements.txt -Force
-              Write-Host "Bumped yt-dlp to $latest"
-              "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-              "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            } else {
-              Write-Host "No changes required (already at $latest or not found)."
-              "bumped=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-              "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            }
+            $newContent | Set-Content "requirements.txt" -Force -NoNewline
+            Write-Host "✅ Bumped yt-dlp to $latest"
+            echo "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           } else {
-            Write-Host "requirements.txt not found — creating one."
-            "yt-dlp==$latest" | Out-File -FilePath requirements.txt -Encoding utf8 -Force
-            "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "yt-dlp==$latest" | Out-File "requirements.txt" -Encoding utf8
+            echo "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           }
+          echo "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Install dependencies (including pyinstaller)
+      - name: Install dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Run PyInstaller with spec
+      - name: Build with PyInstaller
         shell: pwsh
         run: |
-          pyinstaller SeekBeatServer.spec
+          pyinstaller SeekBeatServer.spec --clean --noconfirm
 
-      - name: Find built exe (first .exe under dist) and copy to artifacts folder
+      - name: Prepare release artifact
         id: findexe
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exe) { Write-Error "No .exe found under dist/"; exit 1 }
-          New-Item -ItemType Directory -Path release_artifacts -Force | Out-Null
-          $dest = Join-Path -Path "release_artifacts" -ChildPath "SeekBeatServer.exe"
-          Copy-Item $exe.FullName -Destination $dest -Force
-          Write-Host "artifact_path=$dest"
-          "artifact_path=$dest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { Write-Error "No exe found"; exit 1 }
+          New-Item -ItemType Directory -Path release_artifacts -Force
+          Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
+          echo "artifact_path=release_artifacts/SeekBeatServer.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Determine release tag (auto-bump patch or use override)
+      - name: Determine version tag
         id: determine_tag
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const override = process.env.TAG_OVERRIDE || '';
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
+        run: |
+          if [ -n "${{ inputs.tag_override }}" ]; then
+            echo "tag=${{ inputs.tag_override }}" >> $GITHUB_OUTPUT
+          else
+            # Get latest tag and bump patch
+            git fetch --tags
+            latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            echo "Latest tag: $latest_tag"
+            # Increment patch version
+            new_tag=$(echo $latest_tag | awk -F. '{print $1"."$2"."$3+1}')
+            echo "tag=$new_tag" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
 
-            if (override && override.trim().length > 0) {
-              core.setOutput('tag', override.trim());
-              core.setOutput('name', override.trim());
-              return;
-            }
-
-            const releases = await github.repos.listReleases({ owner, repo, per_page: 100 });
-            const semverRegex = /^v(\d+)\.(\d+)\.(\d+)$/;
-            let max = { major:0, minor:0, patch:0, tag:null };
-            for (const r of releases.data) {
-              const t = r.tag_name;
-              const m = semverRegex.exec(t);
-              if (m) {
-                const maj = parseInt(m[1],10);
-                const min = parseInt(m[2],10);
-                const pat = parseInt(m[3],10);
-                if (maj > max.major || (maj===max.major && min>max.minor) || (maj===max.major && min===max.minor && pat>max.patch)) {
-                  max = { major: maj, minor: min, patch: pat, tag: t };
-                }
-              }
-            }
-
-            if (!max.tag) {
-              const newTag = 'v1.0.0';
-              core.setOutput('tag', newTag);
-              core.setOutput('name', newTag);
-              return;
-            }
-
-            const newPatch = max.patch + 1;
-            const newTag = `v${max.major}.${max.minor}.${newPatch}`;
-            core.setOutput('tag', newTag);
-            core.setOutput('name', newTag);
-        env:
-          TAG_OVERRIDE: ${{ inputs.tag_override }}
-
-      - name: Create GitHub Release
+      - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.determine_tag.outputs.tag }}
-          release_name: ${{ steps.determine_tag.outputs.name }}
+          name: Release ${{ steps.determine_tag.outputs.tag }}
           body: |
-            Automated rebuild of SeekBeatServer triggered by ${{ github.actor }}
-            - Bumped yt-dlp during build: ${{ steps.bump.outputs.bumped || 'false' }}
-            - Old yt-dlp: ${{ steps.read_local.outputs.local_yt_dlp }}
-            - New yt-dlp: ${{ steps.bump.outputs.new_yt_dlp || steps.read_local.outputs.local_yt_dlp }}
-            - Built on runner: windows-latest
+            ## Automated Release
+
+            - **yt-dlp version:** ${{ steps.bump.outputs.new_yt_dlp || steps.read_local.outputs.local_yt_dlp }}
+            - **Build trigger:** ${{ github.actor }}
+            - **Bumped during build:** ${{ inputs.bump_yt_dlp }}
+          files: release_artifacts/SeekBeatServer.exe
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload release asset (SeekBeatServer.exe)
-        id: upload_asset
-        uses: actions/upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: release_artifacts/SeekBeatServer.exe
-          asset_name: SeekBeatServer.exe
-          asset_content_type: application/octet-stream
-
-      - name: Commit requirements.txt back to repo (optional)
-        if: ${{ inputs.bump_yt_dlp == 'true' && inputs.auto_commit == 'true' && steps.bump.outputs.bumped == 'true' }}
-        shell: pwsh
+      - name: Commit requirements.txt update
+        if: ${{ inputs.bump_yt_dlp == 'true' && inputs.auto_commit == 'true' }}
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add requirements.txt
-          git commit -m "chore: bump yt-dlp to latest (automated by release workflow)" || Write-Host "no changes to commit"
-          $branch = "${{ github.ref_name }}"
-          git push origin HEAD:$branch
-
-      - name: Close open dependency-update issues (optional)
-        if: ${{ inputs.close_issues == 'true' }}
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { data: issues } = await github.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              labels: "dependency-update,yt-dlp"
-            });
-            for (const i of issues) {
-              await github.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: i.number,
-                body: `Closed by automatic rebuild/release performed by ${context.actor}.`
-              });
-              await github.issues.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: i.number,
-                state: "closed"
-              });
-            }
+          git diff --staged --quiet || git commit -m "chore: bump yt-dlp to ${{ steps.bump.outputs.new_yt_dlp }}"
+          git push origin HEAD:${{ github.ref_name }}

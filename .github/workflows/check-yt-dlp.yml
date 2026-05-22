@@ -6,7 +6,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 * * *" # midnight UTC
+    - cron: "0 0 * * *"
   workflow_dispatch:
   push:
     branches:
@@ -29,58 +29,65 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Normalize encoding of requirements.txt
-        if: ${{ hashFiles('requirements.txt') != '' }}
-        run: |
-          file -i requirements.txt
-          iconv -f utf-16 -t utf-8 requirements.txt -o requirements.txt.utf8 || cp requirements.txt requirements.txt.utf8
-          mv requirements.txt.utf8 requirements.txt
-
-      - name: Get current yt-dlp version from requirements.txt
+      - name: Get current yt-dlp version from requirements.txt (FIXED)
         id: local
         run: |
-          if [ -f requirements.txt ]; then
-            version=$(awk -F'==' '/^[[:space:]]*yt-dlp/ {gsub(/\r/,"",$2); print $2; exit}' requirements.txt)
-            if [ -z "$version" ]; then
-              version="none"
-            fi
-          else
-            version="none"
-          fi
-          echo "Detected local yt-dlp version: $version"
-          echo "local_version=$version" >> $GITHUB_OUTPUT
-          echo "local_version=$version"
+          # Use Python for robust parsing
+          python << 'EOF'
+          import re
+          version = "none"
+          try:
+              with open("requirements.txt", "r") as f:
+                  for line in f:
+                      line = line.strip()
+                      # Match yt-dlp==version or yt-dlp>=version or yt-dlp<=version
+                      match = re.match(r'^yt-dlp\s*(?:==|>=|<=)\s*([^\s;#]+)', line)
+                      if match:
+                          version = match.group(1)
+                          break
+          except FileNotFoundError:
+              pass
+          print(f"Detected local yt-dlp version: {version}")
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"local_version={version}\n")
+          EOF
 
-      - name: Debug requirements.txt
+      - name: Debug - Show requirements.txt content
         run: |
-          echo "File contents:"
-          cat -A requirements.txt
+          echo "=== requirements.txt ==="
+          cat requirements.txt || echo "File not found"
+          echo "========================"
 
       - name: Get latest yt-dlp version from PyPI
         id: remote
         run: |
           latest=$(curl -s https://pypi.org/pypi/yt-dlp/json | jq -r .info.version)
           echo "latest_version=$latest" >> $GITHUB_OUTPUT
+          echo "Latest PyPI version: $latest"
 
-      - name: Compare versions
+      - name: Compare versions (FIXED)
         id: compare
         run: |
           LOCAL="${{ steps.local.outputs.local_version }}"
           LATEST="${{ steps.remote.outputs.latest_version }}"
-          echo "Local:  $LOCAL"
-          echo "Latest: $LATEST"
-          if [ "$LOCAL" != "$LATEST" ]; then
+
+          echo "Local:  '$LOCAL'"
+          echo "Latest: '$LATEST'"
+
+          # Handle "none" case (yt-dlp not found)
+          if [ "$LOCAL" = "none" ]; then
+            echo "⚠️ yt-dlp not found in requirements.txt"
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+            echo "::warning::yt-dlp not found in requirements.txt"
+          elif [ "$LOCAL" = "$LATEST" ]; then
+            echo "update_needed=false" >> $GITHUB_OUTPUT
+            echo "✅ yt-dlp is up to date ($LOCAL)"
+          else
             echo "update_needed=true" >> $GITHUB_OUTPUT
             echo "::warning::yt-dlp update available: $LOCAL → $LATEST"
-          else
-            echo "update_needed=false" >> $GITHUB_OUTPUT
-            echo "✅ yt-dlp is up to date."
           fi
 
-      - name: Create or comment on issue when update available (avoid duplicate)
+      - name: Create or comment on issue when update available
         if: steps.compare.outputs.update_needed == 'true'
         uses: actions/github-script@v6
         with:
@@ -90,46 +97,36 @@ jobs:
             const repo = context.repo.repo;
             const title = 'yt-dlp update available: ' + process.env.LATEST_VER;
 
-            // fetch first 100 open issues
             const { data: issues } = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', per_page: 100
             });
 
-            // find any open issue with the same title and expected labels
-            const found = issues.find(i =>
-              i.title === title &&
-              i.labels.some(l => ['dependency-update','yt-dlp'].includes(l.name))
+            const found = issues.find(i => 
+              i.title === title && 
+              i.labels.some(l => ['dependency-update', 'yt-dlp'].includes(l.name))
             );
 
             if (found) {
               await github.rest.issues.createComment({
                 owner, repo,
                 issue_number: found.number,
-                body: 'Checked again at ' + new Date().toISOString() + '. yt-dlp ' + process.env.LATEST_VER + ' still available.'
+                body: '✅ Still available as of ' + new Date().toISOString() + '. Ready to rebuild?'
               });
-              console.log('Found existing issue #' + found.number + ' — commented.');
+              console.log('Commented on existing issue #' + found.number);
             } else {
-              const bodyLines = [
-                'A new version of **yt-dlp** is available on PyPI.',
-                '',
-                '- Current in requirements.txt: **' + process.env.LOCAL_VER + '**',
-                '- Latest on PyPI: **' + process.env.LATEST_VER + '**',
-                '',
-                'Trigger the manual Rebuild & Release workflow when you are ready.'
-              ];
               await github.rest.issues.create({
                 owner, repo,
-                title,
-                body: bodyLines.join('\n'),
-                labels: ['dependency-update','yt-dlp']
+                title: title,
+                body: `## yt-dlp update available 🚀\n\n- **Current in requirements.txt:** \`${process.env.LOCAL_VER}\`\n- **Latest on PyPI:** \`${process.env.LATEST_VER}\`\n\nRun the "Rebuild and Release Seekbeat" workflow (with \`bump_yt_dlp=true\`) to update.`,
+                labels: ['dependency-update', 'yt-dlp']
               });
-              console.log('Created new issue for update ' + process.env.LATEST_VER);
+              console.log('Created new issue');
             }
         env:
           LOCAL_VER: ${{ steps.local.outputs.local_version }}
           LATEST_VER: ${{ steps.remote.outputs.latest_version }}
 
-      - name: Log "no update" by commenting on a persistent log issue
+      - name: Log no-update checks
         if: steps.compare.outputs.update_needed == 'false'
         uses: actions/github-script@v6
         with:
@@ -138,9 +135,8 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const logTitle = 'yt-dlp check log';
-            const body = 'No update needed at ' + new Date().toISOString() + '.\n- Local: ' + process.env.LOCAL_VER + '\n- Latest: ' + process.env.LATEST_VER;
+            const body = `## Check at ${new Date().toISOString()}\n- Local: \`${process.env.LOCAL_VER}\`\n- Latest: \`${process.env.LATEST_VER}\`\n- Status: ✅ Up to date`;
 
-            // find open issues labeled yt-dlp-check-log (first 100)
             const { data: issues } = await github.rest.issues.listForRepo({
               owner, repo, state: 'open', labels: 'yt-dlp-check-log', per_page: 100
             });
@@ -150,17 +146,16 @@ jobs:
               const created = await github.rest.issues.create({
                 owner, repo,
                 title: logTitle,
-                body: 'This issue is used to collect yt-dlp nightly check comments. It is created by the workflow.',
+                body: 'Persistent log for yt-dlp version checks',
                 labels: ['yt-dlp-check-log']
               });
               found = created.data;
-              console.log('Created persistent log issue #' + found.number);
             }
 
             await github.rest.issues.createComment({
               owner, repo,
               issue_number: found.number,
-              body
+              body: body
             });
         env:
           LOCAL_VER: ${{ steps.local.outputs.local_version }}
