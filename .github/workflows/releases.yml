@@ -38,61 +38,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Read current yt-dlp version
-        id: read_local
+      - name: Create .env file from secret
         shell: pwsh
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
         run: |
-          $version = "none"
-          if (Test-Path "requirements.txt") {
-            $content = Get-Content "requirements.txt" -Raw
-            if ($content -match '(?m)^yt-dlp\s*(?:==|>=|<=)\s*([^\s;#]+)') {
-              $version = $Matches[1]
-            }
+          if (-not $env:ENV_CONTENT) {
+            Write-Error "Missing secret 'ENV_FILE_CONTENT'. Please add it in repository settings."
+            exit 1
           }
-          Write-Host "Current yt-dlp version: $version"
-          echo "local_yt_dlp=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-      - name: Check for yt-dlp update
-        id: check_version
-        shell: pwsh
-        run: |
-          $local = "${{ steps.read_local.outputs.local_yt_dlp }}"
-          $latest = (Invoke-RestMethod -Uri "https://pypi.org/pypi/yt-dlp/json").info.version
-
-          Write-Host "Local: $local"
-          Write-Host "Latest: $latest"
-
-          echo "latest_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-          if ($local -ne "none" -and $local -ne $latest) {
-            Write-Host "::warning::Update available: $local → $latest"
-            echo "update_needed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          } else {
-            echo "update_needed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
-
-      - name: Bump yt-dlp if requested
-        if: ${{ inputs.bump_yt_dlp == 'true' }}
-        id: bump
-        shell: pwsh
-        run: |
-          $latest = "${{ steps.check_version.outputs.latest_yt_dlp }}"
-
-          if (Test-Path "requirements.txt") {
-            $content = Get-Content "requirements.txt" -Raw
-            if ($content -match 'yt-dlp\s*(?:==|>=|<=)\s*[^\s;#]+') {
-              $newContent = $content -replace '(yt-dlp\s*(?:==|>=|<=)\s*)[^\s;#]+', "`$1$latest"
-            } else {
-              $newContent = $content + "`nyt-dlp==$latest`n"
-            }
-            $newContent | Set-Content "requirements.txt" -Force -NoNewline
-            Write-Host "✅ Bumped yt-dlp to $latest"
-            echo "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          } else {
-            "yt-dlp==$latest" | Out-File "requirements.txt" -Encoding utf8
-            echo "bumped=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
-          echo "new_yt_dlp=$latest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $env:ENV_CONTENT | Out-File -FilePath ".env" -Encoding utf8
+          Write-Host "✅ .env file created from secret"
 
       - name: Install dependencies
         shell: pwsh
@@ -114,7 +70,6 @@ jobs:
           if (-not $exe) { Write-Error "No exe found"; exit 1 }
           New-Item -ItemType Directory -Path release_artifacts -Force
           Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
-          echo "artifact_path=release_artifacts/SeekBeatServer.exe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Determine version tag
         id: determine_tag
@@ -122,40 +77,24 @@ jobs:
           if [ -n "${{ inputs.tag_override }}" ]; then
             echo "tag=${{ inputs.tag_override }}" >> $GITHUB_OUTPUT
           else
-            # Get latest tag and bump patch
             git fetch --tags
             latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-            echo "Latest tag: $latest_tag"
-            # Increment patch version
             new_tag=$(echo $latest_tag | awk -F. '{print $1"."$2"."$3+1}')
             echo "tag=$new_tag" >> $GITHUB_OUTPUT
           fi
         shell: bash
 
       - name: Create Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.determine_tag.outputs.tag }}
           name: Release ${{ steps.determine_tag.outputs.tag }}
           body: |
             ## Automated Release
-
-            - **yt-dlp version:** ${{ steps.bump.outputs.new_yt_dlp || steps.read_local.outputs.local_yt_dlp }}
+            - **yt-dlp version:** (already bumped by check workflow)
             - **Build trigger:** ${{ github.actor }}
-            - **Bumped during build:** ${{ inputs.bump_yt_dlp }}
           files: release_artifacts/SeekBeatServer.exe
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Commit requirements.txt update
-        if: ${{ inputs.bump_yt_dlp == 'true' && inputs.auto_commit == 'true' }}
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add requirements.txt
-          git diff --staged --quiet || git commit -m "chore: bump yt-dlp to ${{ steps.bump.outputs.new_yt_dlp }}"
-          git push origin HEAD:${{ github.ref_name }}
