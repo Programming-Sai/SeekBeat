@@ -76,8 +76,9 @@ jobs:
 
       - name: Bump yt-dlp in requirements.txt and commit
         if: steps.compare.outputs.update_needed == 'true'
+        env:
+          LATEST: ${{ steps.remote.outputs.latest_version }}
         run: |
-          latest="${{ steps.remote.outputs.latest_version }}"
           # Detect original encoding
           if file requirements.txt | grep -q "UTF-16"; then
             ENC="utf-16"
@@ -87,8 +88,10 @@ jobs:
           python << EOF
           import re
           from pathlib import Path
+          import os
 
           enc = "$ENC"
+          latest = os.environ['LATEST']
           path = Path("requirements.txt")
           content = path.read_text(encoding=enc)
           lines = content.splitlines(keepends=True)
@@ -107,8 +110,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add requirements.txt
-          git commit -m "chore: bump yt-dlp to $latest"
-          git push origin HEAD:${{ github.ref_name }}
+          git commit -m "chore: bump yt-dlp to ${{ steps.remote.outputs.latest_version }}"
+          git push origin HEAD:desktop   # ← changed line
 
       - name: Create issue when update available
         if: steps.compare.outputs.update_needed == 'true'
