@@ -57,19 +57,26 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Set PYTHONPATH to include site-packages
+        shell: pwsh
+        run: |
+          $site_packages = python -c "import site; print(site.getsitepackages()[0])"
+          echo "PYTHONPATH=$site_packages" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "PYTHONPATH set to $site_packages"
+
       - name: Build with PyInstaller
         shell: pwsh
         run: |
           pyinstaller SeekBeatServer.spec --clean --noconfirm
 
-      - name: Prepare release artifact
-        id: findexe
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse | Select-Object -First 1
-          if (-not $exe) { Write-Error "No exe found"; exit 1 }
-          New-Item -ItemType Directory -Path release_artifacts -Force
-          Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
+            - name: Prepare release artifact
+              id: findexe
+              shell: pwsh
+              run: |
+                $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse | Select-Object -First 1
+                if (-not $exe) { Write-Error "No exe found"; exit 1 }
+                New-Item -ItemType Directory -Path release_artifacts -Force
+                Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
 
       - name: Determine version tag
         id: determine_tag
