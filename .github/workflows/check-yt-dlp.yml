@@ -156,7 +156,8 @@ jobs:
             --ref desktop \
             --repo ${{ github.repository }} \
             -f bump_yt_dlp=false \
-            -f auto_commit=false
+            -f auto_commit=false \
+            -f close_issues=true
           echo "✅ Release workflow triggered"
 
       - name: Log no-update checks
