@@ -3,6 +3,7 @@ name: Check yt-dlp Version
 permissions:
   contents: read
   issues: write
+  actions: write # ← ADD THIS to allow triggering workflows
 
 on:
   schedule:
@@ -136,21 +137,39 @@ jobs:
               await github.rest.issues.createComment({
                 owner, repo,
                 issue_number: found.number,
-                body: '✅ Still available as of ' + new Date().toISOString() + '. Ready to rebuild?'
+                body: '✅ Still available as of ' + new Date().toISOString() + '. Auto-triggering rebuild...'
               });
               console.log('Commented on existing issue #' + found.number);
             } else {
               await github.rest.issues.create({
                 owner, repo,
                 title: title,
-                body: `## yt-dlp update available 🚀\n\n- **Current in requirements.txt:** \`${process.env.LOCAL_VER}\`\n- **Latest on PyPI:** \`${process.env.LATEST_VER}\`\n\nRun the "Rebuild and Release Seekbeat" workflow (with \`bump_yt_dlp=true\`) to update.`,
+                body: `## yt-dlp update available 🚀\n\n- **Current in requirements.txt:** \`${process.env.LOCAL_VER}\`\n- **Latest on PyPI:** \`${process.env.LATEST_VER}\`\n\nAuto-triggering rebuild...`,
                 labels: ['dependency-update', 'yt-dlp']
               });
               console.log('Created new issue');
             }
+
+      - name: Auto-trigger rebuild workflow
+        if: steps.compare.outputs.update_needed == 'true'
         env:
-          LOCAL_VER: ${{ steps.local.outputs.local_version }}
-          LATEST_VER: ${{ steps.remote.outputs.latest_version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if rebuild already running
+          RUNS=$(gh run list --workflow "Rebuild and Release Seekbeat" --branch desktop --status in_progress --limit 1 --json status --jq '.[0].status' 2>/dev/null || echo "")
+          if [ "$RUNS" = "in_progress" ] || [ "$RUNS" = "queued" ]; then
+            echo "⚠️ Rebuild already in progress, skipping trigger"
+            exit 0
+          fi
+
+          # Trigger rebuild
+          gh workflow run "Rebuild and Release Seekbeat" \
+            --ref desktop \
+            --repo ${{ github.repository }} \
+            -f bump_yt_dlp=true \
+            -f auto_commit=true
+
+          echo "✅ Auto-triggered rebuild workflow"
 
       - name: Log no-update checks
         if: steps.compare.outputs.update_needed == 'false'
