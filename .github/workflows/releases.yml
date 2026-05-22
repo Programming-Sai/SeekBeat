@@ -17,6 +17,11 @@ on:
         required: false
         default: true
         type: boolean
+      close_issues: # ← ADD THIS
+        description: "Close open yt-dlp dependency issues after release"
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   build-and-release:
@@ -90,6 +95,34 @@ jobs:
             new_tag=$(echo $latest_tag | awk -F. '{print $1"."$2"."$3+1}')
             echo "tag=$new_tag" >> $GITHUB_OUTPUT
           fi
+
+      - name: Close open dependency-update issues
+        if: inputs.close_issues == true
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "dependency-update,yt-dlp"
+            });
+            for (const issue of issues) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Closed by automatic rebuild/release #${{ github.run_number }}`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed"
+              });
+            }
+            console.log(`Closed ${issues.length} issue(s)`);
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
