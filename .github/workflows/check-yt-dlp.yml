@@ -74,24 +74,42 @@ jobs:
             echo "update_needed=true" >> $GITHUB_OUTPUT
           fi
 
-      # --- NEW: bump requirements.txt and commit ---
       - name: Bump yt-dlp in requirements.txt and commit
         if: steps.compare.outputs.update_needed == 'true'
         run: |
           latest="${{ steps.remote.outputs.latest_version }}"
-          # Replace the yt-dlp line
-          if grep -q "^yt-dlp" requirements.txt; then
-            sed -i "s/^yt-dlp[=]*.*/yt-dlp==$latest/" requirements.txt
+          # Detect original encoding
+          if file requirements.txt | grep -q "UTF-16"; then
+            ENC="utf-16"
           else
-            echo "yt-dlp==$latest" >> requirements.txt
+            ENC="utf-8"
           fi
+          python << EOF
+          import re
+          from pathlib import Path
+
+          enc = "$ENC"
+          path = Path("requirements.txt")
+          content = path.read_text(encoding=enc)
+          lines = content.splitlines(keepends=True)
+          new_lines = []
+          replaced = False
+          for line in lines:
+              if re.match(r'^yt-dlp\s*(?:==|>=|<=)', line.strip()):
+                  new_lines.append(f"yt-dlp=={latest}\n")
+                  replaced = True
+              else:
+                  new_lines.append(line)
+          if not replaced:
+              new_lines.append(f"yt-dlp=={latest}\n")
+          path.write_text("".join(new_lines), encoding=enc)
+          EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add requirements.txt
           git commit -m "chore: bump yt-dlp to $latest"
           git push origin HEAD:${{ github.ref_name }}
 
-      # --- Create issue (now versions are available) ---
       - name: Create issue when update available
         if: steps.compare.outputs.update_needed == 'true'
         uses: actions/github-script@v6
@@ -126,7 +144,6 @@ jobs:
               });
             }
 
-      # --- Trigger release workflow (without bumping again) ---
       - name: Auto-trigger rebuild workflow
         if: steps.compare.outputs.update_needed == 'true'
         env:
@@ -139,7 +156,6 @@ jobs:
             -f auto_commit=false
           echo "✅ Release workflow triggered"
 
-      # --- Keep the log issue for “no update” cases ---
       - name: Log no-update checks
         if: steps.compare.outputs.update_needed == 'false'
         uses: actions/github-script@v6

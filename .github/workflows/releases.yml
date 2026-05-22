@@ -69,17 +69,18 @@ jobs:
         run: |
           pyinstaller SeekBeatServer.spec --clean --noconfirm
 
-            - name: Prepare release artifact
-              id: findexe
-              shell: pwsh
-              run: |
-                $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse | Select-Object -First 1
-                if (-not $exe) { Write-Error "No exe found"; exit 1 }
-                New-Item -ItemType Directory -Path release_artifacts -Force
-                Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
+      - name: Prepare release artifact
+        id: findexe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { Write-Error "No exe found"; exit 1 }
+          New-Item -ItemType Directory -Path release_artifacts -Force
+          Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
 
       - name: Determine version tag
         id: determine_tag
+        shell: bash
         run: |
           if [ -n "${{ inputs.tag_override }}" ]; then
             echo "tag=${{ inputs.tag_override }}" >> $GITHUB_OUTPUT
@@ -89,7 +90,6 @@ jobs:
             new_tag=$(echo $latest_tag | awk -F. '{print $1"."$2"."$3+1}')
             echo "tag=$new_tag" >> $GITHUB_OUTPUT
           fi
-        shell: bash
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
