@@ -29,34 +29,62 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Get current yt-dlp version from requirements.txt (FIXED)
+      - name: Get current yt-dlp version from requirements.txt (FIXED ENCODING)
         id: local
         run: |
-          # Use Python for robust parsing
+          # Use Python with encoding detection
           python << 'EOF'
           import re
+          import os
+
           version = "none"
-          try:
-              with open("requirements.txt", "r") as f:
-                  for line in f:
-                      line = line.strip()
-                      # Match yt-dlp==version or yt-dlp>=version or yt-dlp<=version
-                      match = re.match(r'^yt-dlp\s*(?:==|>=|<=)\s*([^\s;#]+)', line)
-                      if match:
-                          version = match.group(1)
-                          break
-          except FileNotFoundError:
-              pass
+          file_path = "requirements.txt"
+
+          # Try different encodings
+          encodings_to_try = ['utf-8-sig', 'utf-16', 'utf-16le', 'utf-16be', 'latin-1']
+
+          if os.path.exists(file_path):
+              for encoding in encodings_to_try:
+                  try:
+                      with open(file_path, "r", encoding=encoding) as f:
+                          content = f.read()
+                          # Look for yt-dlp line
+                          for line in content.splitlines():
+                              line = line.strip()
+                              # Match yt-dlp==version or yt-dlp>=version or yt-dlp<=version
+                              match = re.match(r'^yt-dlp\s*(?:==|>=|<=)\s*([^\s;#]+)', line)
+                              if match:
+                                  version = match.group(1)
+                                  break
+                          if version != "none":
+                              break  # Found version, stop trying encodings
+                  except (UnicodeDecodeError, UnicodeError):
+                      continue  # Try next encoding
+
           print(f"Detected local yt-dlp version: {version}")
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f"local_version={version}\n")
           EOF
 
-      - name: Debug - Show requirements.txt content
+      - name: Debug - Show requirements.txt (with hex dump)
         run: |
-          echo "=== requirements.txt ==="
-          cat requirements.txt || echo "File not found"
-          echo "========================"
+          echo "=== File info ==="
+          file requirements.txt || echo "file command not available"
+          echo ""
+          echo "=== First 100 bytes in hex ==="
+          head -c 100 requirements.txt | xxd || echo "xxd not available"
+          echo ""
+          echo "=== Attempting to read with different encodings ==="
+          python << 'EOF'
+          import codecs
+          encodings = ['utf-8-sig', 'utf-16', 'latin-1', 'cp1252']
+          for enc in encodings:
+              try:
+                  with open('requirements.txt', 'r', encoding=enc) as f:
+                      print(f"{enc}: {f.readline().strip()[:50]}")
+              except:
+                  print(f"{enc}: FAILED")
+          EOF
 
       - name: Get latest yt-dlp version from PyPI
         id: remote
@@ -65,7 +93,7 @@ jobs:
           echo "latest_version=$latest" >> $GITHUB_OUTPUT
           echo "Latest PyPI version: $latest"
 
-      - name: Compare versions (FIXED)
+      - name: Compare versions
         id: compare
         run: |
           LOCAL="${{ steps.local.outputs.local_version }}"
@@ -74,11 +102,9 @@ jobs:
           echo "Local:  '$LOCAL'"
           echo "Latest: '$LATEST'"
 
-          # Handle "none" case (yt-dlp not found)
           if [ "$LOCAL" = "none" ]; then
             echo "⚠️ yt-dlp not found in requirements.txt"
             echo "update_needed=false" >> $GITHUB_OUTPUT
-            echo "::warning::yt-dlp not found in requirements.txt"
           elif [ "$LOCAL" = "$LATEST" ]; then
             echo "update_needed=false" >> $GITHUB_OUTPUT
             echo "✅ yt-dlp is up to date ($LOCAL)"
