@@ -1,0 +1,19 @@
+name: Cron Trigger for yt-dlp Check
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # midnight UTC
+  workflow_dispatch: # manual trigger for testing
+
+jobs:
+  trigger-check-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger check workflow on desktop branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run "Check yt-dlp Version" \
+            --ref desktop \
+            --repo ${{ github.repository }}
+          echo "✅ Triggered check workflow on desktop branch"
