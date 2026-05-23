@@ -2,7 +2,7 @@ name: Cron Trigger for yt-dlp Check
 
 on:
   schedule:
-    - cron: "*/5 * * * *" # midnight UTC
+    - cron: "*/55 * * * *" # midnight UTC
   workflow_dispatch: # manual trigger for testing
 
 jobs:
