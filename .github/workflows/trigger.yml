@@ -1,5 +1,8 @@
 name: Trigger Check on Push
 
+permissions:
+  actions: write # Required to trigger workflows
+
 on:
   push:
     branches:
