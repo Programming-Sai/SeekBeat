@@ -11,9 +11,9 @@ on:
     # - cron: "*/5 * * * *" # Runs every 5 minutes (for testing)
     - cron: "*/55 * * * *" # midnight UTC
   workflow_dispatch:
-  push:
-    branches:
-      - desktop
+  # push:
+  #   branches:
+  #     - desktop
 
 jobs:
   check-yt-dlp:
@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: desktop # 🔥 explicitly work on the desktop branch
+          fetch-depth: 1 # only the latest commit is enough
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -84,7 +87,6 @@ jobs:
           # First, get the latest changes from remote desktop
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull origin desktop --rebase
 
           # Detect original encoding
           if file requirements.txt | grep -q "UTF-16"; then
