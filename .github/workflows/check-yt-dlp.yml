@@ -161,7 +161,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run "Rebuild and Release Seekbeat" \
-            --ref desktop \
             --repo ${{ github.repository }} \
             -f bump_yt_dlp=false \
             -f auto_commit=false \
