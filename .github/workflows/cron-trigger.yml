@@ -13,8 +13,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # gh workflow run "Check yt-dlp Version" \
-          #   --ref desktop \
-          #   --repo ${{ github.repository }}
-          # echo "✅ Triggered check workflow on desktop branch"
-          echo "Running"
+          # Run the command and capture the output URL
+          RUN_URL=$(gh workflow run "Rebuild and Release Seekbeat" \
+            --ref main \
+            --repo ${{ github.repository }} \
+            -f bump_yt_dlp=false \
+            -f auto_commit=false \
+            -f close_issues=true 2>&1 | grep -o 'https://github.com/[^ ]*')
+
+          echo "✅ Release workflow triggered"
+          echo "🔗 Run URL: ${RUN_URL}"
+          echo "workflow_url=${RUN_URL}" >> $GITHUB_OUTPUT
