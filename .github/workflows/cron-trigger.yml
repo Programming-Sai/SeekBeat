@@ -9,25 +9,37 @@ jobs:
   trigger-check-workflow:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger yt-dlp check workflow
+      - name: Trigger rebuild workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Triggering yt-dlp check workflow..."
+          # Trigger the workflow and capture output
+          echo "Triggering Rebuild and Release Seekbeat workflow..."
 
-          # Trigger and capture output (including URL)
-          OUTPUT=$(gh workflow run "Check yt-dlp Version" \
+          # Run gh command and capture output, but don't exit on error
+          set +e  # Temporarily disable exit on error
+          OUTPUT=$(gh workflow run "Rebuild and Release Seekbeat" \
             --ref main \
-            --repo ${{ github.repository }} 2>&1) || true
+            --repo ${{ github.repository }} \
+            -f bump_yt_dlp=false \
+            -f auto_commit=false \
+            -f close_issues=true 2>&1)
+          EXIT_CODE=$?
+          set -e  # Re-enable exit on error
 
+          # Print the output
           echo "$OUTPUT"
 
-          # Extract URL if present (won't fail if not found)
-          RUN_URL=$(echo "$OUTPUT" | grep -o 'https://github\.com/[^[:space:]]*' | head -1 || echo "")
+          # Extract URL if present (using grep that won't fail)
+          RUN_URL=$(echo "$OUTPUT" | grep -o 'https://github\.com/[^[:space:]]*' | head -1 || true)
 
-          if [ -n "$RUN_URL" ]; then
-            echo "🔗 Check workflow URL: $RUN_URL"
-            echo "workflow_url=$RUN_URL" >> $GITHUB_OUTPUT
+          if [ $EXIT_CODE -eq 0 ] && [ -n "$RUN_URL" ]; then
+            echo "✅ Release workflow triggered successfully"
+            echo "🔗 Run URL: ${RUN_URL}"
+            echo "workflow_url=${RUN_URL}" >> $GITHUB_OUTPUT
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Release workflow triggered (URL not captured)"
           else
-            echo "✅ Trigger sent (no URL captured)"
+            echo "⚠️ Failed to trigger workflow (exit code: $EXIT_CODE)"
+            exit $EXIT_CODE
           fi
