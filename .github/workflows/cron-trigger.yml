@@ -2,25 +2,32 @@ name: Cron Trigger for yt-dlp Check
 
 on:
   schedule:
-    - cron: "*/55 * * * *" # midnight UTC
-  workflow_dispatch: # manual trigger for testing
+    - cron: "*/55 * * * *"
+  workflow_dispatch:
 
 jobs:
   trigger-check-workflow:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger check workflow on desktop branch
+      - name: Trigger yt-dlp check workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Run the command and capture the output URL
-          RUN_URL=$(gh workflow run "Rebuild and Release Seekbeat" \
-            --ref main \
-            --repo ${{ github.repository }} \
-            -f bump_yt_dlp=false \
-            -f auto_commit=false \
-            -f close_issues=true 2>&1 | grep -o 'https://github.com/[^ ]*')
+          echo "Triggering yt-dlp check workflow..."
 
-          echo "✅ Release workflow triggered"
-          echo "🔗 Run URL: ${RUN_URL}"
-          echo "workflow_url=${RUN_URL}" >> $GITHUB_OUTPUT
+          # Trigger and capture output (including URL)
+          OUTPUT=$(gh workflow run "Check yt-dlp Version" \
+            --ref main \
+            --repo ${{ github.repository }} 2>&1) || true
+
+          echo "$OUTPUT"
+
+          # Extract URL if present (won't fail if not found)
+          RUN_URL=$(echo "$OUTPUT" | grep -o 'https://github\.com/[^[:space:]]*' | head -1 || echo "")
+
+          if [ -n "$RUN_URL" ]; then
+            echo "🔗 Check workflow URL: $RUN_URL"
+            echo "workflow_url=$RUN_URL" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Trigger sent (no URL captured)"
+          fi
