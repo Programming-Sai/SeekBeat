@@ -1,0 +1,140 @@
+name: Rebuild and Release Seekbeat
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_override:
+        description: "Optional: force release tag (e.g. v1.2.3)"
+        required: false
+        default: ""
+      bump_yt_dlp:
+        description: "Update yt-dlp to latest version before building"
+        required: false
+        default: false
+        type: boolean
+      auto_commit:
+        description: "Commit updated requirements.txt after bumping"
+        required: false
+        default: true
+        type: boolean
+      close_issues: # ← ADD THIS
+        description: "Close open yt-dlp dependency issues after release"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-and-release:
+    if: github.ref == 'refs/heads/desktop'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create .env file from secret
+        shell: pwsh
+        env:
+          ENV_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
+        run: |
+          if (-not $env:ENV_CONTENT) {
+            Write-Error "Missing secret 'ENV_FILE_CONTENT'. Please add it in repository settings."
+            exit 1
+          }
+          $env:ENV_CONTENT | Out-File -FilePath ".env" -Encoding utf8
+          Write-Host "✅ .env file created from secret"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Set PYTHONPATH to include site-packages
+        shell: pwsh
+        run: |
+          $site_packages = python -c "import site; print(site.getsitepackages()[0])"
+          echo "PYTHONPATH=$site_packages" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "PYTHONPATH set to $site_packages"
+
+      - name: Build with PyInstaller
+        shell: pwsh
+        run: |
+          pyinstaller SeekBeatServer.spec --clean --noconfirm
+
+      - name: Prepare release artifact
+        id: findexe
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path .\dist -Filter *.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { Write-Error "No exe found"; exit 1 }
+          New-Item -ItemType Directory -Path release_artifacts -Force
+          Copy-Item $exe.FullName -Destination "release_artifacts/SeekBeatServer.exe" -Force
+
+      - name: Determine version tag
+        id: determine_tag
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag_override }}" ]; then
+            echo "tag=${{ inputs.tag_override }}" >> $GITHUB_OUTPUT
+          else
+            git fetch --tags
+            latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            new_tag=$(echo $latest_tag | awk -F. '{print $1"."$2"."$3+1}')
+            echo "tag=$new_tag" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Close open dependency-update issues
+        if: inputs.close_issues == true
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: "dependency-update,yt-dlp"
+            });
+            for (const issue of issues) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Closed by automatic rebuild/release #${{ github.run_number }}`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: "closed"
+              });
+            }
+            console.log(`Closed ${issues.length} issue(s)`);
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.determine_tag.outputs.tag }}
+          name: Release ${{ steps.determine_tag.outputs.tag }}
+          body: |
+            ## Automated Release
+            - **yt-dlp version:** (already bumped by check workflow)
+            - **Build trigger:** ${{ github.actor }}
+          files: release_artifacts/SeekBeatServer.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
