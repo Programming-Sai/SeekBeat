@@ -111,6 +111,7 @@ jobs:
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull origin desktop --rebase
           git add requirements.txt
           git commit -m "chore: bump yt-dlp to ${{ steps.remote.outputs.latest_version }}"
           git push origin HEAD:desktop   # ← changed line
