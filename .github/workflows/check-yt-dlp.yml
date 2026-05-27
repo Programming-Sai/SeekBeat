@@ -8,7 +8,8 @@ permissions:
 on:
   schedule:
     # - cron: "0 0 * * *"
-    - cron: "*/5 * * * *" # Runs every 5 minutes (for testing)
+    # - cron: "*/5 * * * *" # Runs every 5 minutes (for testing)
+    - cron: "*/55 * * * *" # midnight UTC
   workflow_dispatch:
   push:
     branches:
