@@ -5,41 +5,20 @@ on:
     - cron: "*/55 * * * *"
   workflow_dispatch:
 
+permissions:
+  actions: write # Allows triggering workflows
+  contents: read # Needed to read the repo
+
 jobs:
   trigger-check-workflow:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger rebuild workflow
+      - name: Trigger yt-dlp check workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Trigger the workflow and capture output
-          echo "Triggering Rebuild and Release Seekbeat workflow..."
-
-          # Run gh command and capture output, but don't exit on error
-          set +e  # Temporarily disable exit on error
-          OUTPUT=$(gh workflow run "Rebuild and Release Seekbeat" \
+          echo "Triggering Check yt-dlp Version workflow..."
+          gh workflow run "Check yt-dlp Version" \
             --ref main \
-            --repo ${{ github.repository }} \
-            -f bump_yt_dlp=false \
-            -f auto_commit=false \
-            -f close_issues=true 2>&1)
-          EXIT_CODE=$?
-          set -e  # Re-enable exit on error
-
-          # Print the output
-          echo "$OUTPUT"
-
-          # Extract URL if present (using grep that won't fail)
-          RUN_URL=$(echo "$OUTPUT" | grep -o 'https://github\.com/[^[:space:]]*' | head -1 || true)
-
-          if [ $EXIT_CODE -eq 0 ] && [ -n "$RUN_URL" ]; then
-            echo "✅ Release workflow triggered successfully"
-            echo "🔗 Run URL: ${RUN_URL}"
-            echo "workflow_url=${RUN_URL}" >> $GITHUB_OUTPUT
-          elif [ $EXIT_CODE -eq 0 ]; then
-            echo "✅ Release workflow triggered (URL not captured)"
-          else
-            echo "⚠️ Failed to trigger workflow (exit code: $EXIT_CODE)"
-            exit $EXIT_CODE
-          fi
+            --repo ${{ github.repository }}
+          echo "✅ Check workflow triggered successfully"
