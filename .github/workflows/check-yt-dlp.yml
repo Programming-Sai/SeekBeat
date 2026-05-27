@@ -111,10 +111,11 @@ jobs:
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull origin desktop --rebase
+          # Commit first, then pull and push
           git add requirements.txt
           git commit -m "chore: bump yt-dlp to ${{ steps.remote.outputs.latest_version }}"
-          git push origin HEAD:desktop   # ← changed line
+          git pull origin desktop --rebase
+          git push origin HEAD:desktop
 
       - name: Create issue when update available
         if: steps.compare.outputs.update_needed == 'true'
