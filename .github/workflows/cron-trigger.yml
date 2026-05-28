@@ -2,7 +2,7 @@ name: Cron Trigger for yt-dlp Check
 
 on:
   schedule:
-    - cron: "*/55 * * * *"
+    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 permissions:
